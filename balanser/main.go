@@ -58,7 +58,7 @@ func main() {
 
 		_, err = io.Copy(w, resp.Body)
 		if err == nil {
-			log.Println("Chosen backend: " + backend + "   " + r.URL.String())
+			log.Println("Chosen backend: " + backend)
 		}
 		return errors.NewErr(err)
 	}))
