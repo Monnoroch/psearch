@@ -2,19 +2,20 @@ package main
 
 import (
 	"flag"
-	"net/http"
 	"io/ioutil"
 	"log"
-	"strconv"
-	"psearch/util/errors"
+	"net/http"
 	"psearch/util"
+	"psearch/util/errors"
+	"strconv"
 )
 
 func main() {
+	var help = flag.Bool("help", false, "print help")
 	var port = flag.Int("port", -1, "port to listen")
 	flag.Parse()
 
-	if *port == -1 {
+	if *help || *port == -1 {
 		flag.PrintDefaults()
 		return
 	}
@@ -41,6 +42,6 @@ func main() {
 	}))
 
 	if err := http.ListenAndServe(":"+strconv.Itoa(*port), nil); err != nil {
-		log.Fatal(err)
+		log.Fatal(errors.NewErr(err))
 	}
 }
