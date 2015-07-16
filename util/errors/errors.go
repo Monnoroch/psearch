@@ -14,6 +14,10 @@ func (self ErrorT) Error() string {
 	return self.Base.Error() + "\n" + self.callstack
 }
 
+func (self ErrorT) Reason() error {
+	return self.Base
+}
+
 func New(s string) error {
 	return ErrorT{goerrors.New(s), string(debug.Stack())}
 }
