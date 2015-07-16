@@ -3,10 +3,10 @@ package main
 import (
 	"flag"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"psearch/util"
 	"psearch/util/errors"
+	"psearch/util/log"
 	"strconv"
 )
 
@@ -38,7 +38,11 @@ func main() {
 			return errors.NewErr(err)
 		}
 
-		return util.SendJson(w, map[string]string{url: string(body)})
+		err = util.SendJson(w, map[string]string{url: string(body)})
+		if err == nil {
+			log.Println("Served URL: " + url)
+		}
+		return err
 	}))
 
 	if err := http.ListenAndServe(":"+strconv.Itoa(*port), nil); err != nil {
