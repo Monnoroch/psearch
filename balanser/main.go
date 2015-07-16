@@ -4,11 +4,11 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"psearch/balanser/chooser"
 	"psearch/util"
 	"psearch/util/errors"
+	"psearch/util/log"
 	"strconv"
 )
 
@@ -46,21 +46,35 @@ func main() {
 		return nil
 	}))
 
+	maxCount := len(urls)
 	http.HandleFunc("/", util.CreateErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
-		backend := router.Choose()
-		r.URL.Scheme = "http"
-		r.URL.Host = backend
-		resp, err := http.Get(r.URL.String())
-		if err != nil {
+		failed := map[string]struct{}{}
+		for {
+			if len(failed) == maxCount {
+				return errors.New("All backends broken!")
+			}
+
+			backend := router.Choose()
+			if _, ok := failed[backend]; ok {
+				continue
+			}
+
+			r.URL.Scheme = "http"
+			r.URL.Host = backend
+			resp, err := http.Get(r.URL.String())
+			if err != nil {
+				failed[backend] = struct{}{}
+				log.Errorln(err)
+				continue
+			}
+			defer resp.Body.Close()
+
+			_, err = io.Copy(w, resp.Body)
+			if err == nil {
+				log.Println("Chosen backend: " + backend)
+			}
 			return errors.NewErr(err)
 		}
-		defer resp.Body.Close()
-
-		_, err = io.Copy(w, resp.Body)
-		if err == nil {
-			log.Println("Chosen backend: " + backend)
-		}
-		return errors.NewErr(err)
 	}))
 
 	if err := http.ListenAndServe(":"+strconv.Itoa(*port), nil); err != nil {
