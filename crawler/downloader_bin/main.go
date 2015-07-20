@@ -2,8 +2,8 @@ package main
 
 import (
 	"flag"
-	"io/ioutil"
 	"net/http"
+	"psearch/crawler/downloader"
 	"psearch/util"
 	"psearch/util/errors"
 	"psearch/util/graceful"
@@ -22,35 +22,26 @@ func main() {
 		return
 	}
 
+	downloader := &downloader.Downloader{}
 	server := graceful.NewServer(http.Server{})
 
 	http.HandleFunc("/favicon.ico", graceful.CreateHandler(server, util.CreateErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
 		return nil
 	})))
 
-	http.HandleFunc("/dl", graceful.CreateHandler(server, util.CreateErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
+	http.HandleFunc(downloader.ApiUrl(), graceful.CreateHandler(server, util.CreateErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
 		r.ParseForm()
 		url, err := util.GetParam(r, "url")
 		if err != nil {
 			return err
 		}
 
-		resp, err := http.Get(url)
-		if err != nil {
-			return errors.NewErr(err)
-		}
-		defer resp.Body.Close()
-
-		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return errors.NewErr(err)
+		if err := downloader.Download(w, url); err != nil {
+			return err
 		}
 
-		err = util.SendJson(w, map[string]string{url: string(body)})
-		if err == nil {
-			log.Println("Served URL: " + url)
-		}
-		return err
+		log.Println("Served URL: " + url)
+		return nil
 	})))
 
 	server.SetSighup()
