@@ -3,27 +3,25 @@ package dns
 import (
 	"net/http"
 	"psearch/util/errors"
+	"strings"
 )
 
 type ResolverApi struct {
-	Addr string
+	prefix string
+}
+
+func NewResolverApi(addr string) ResolverApi {
+	return ResolverApi{
+		prefix: "http://" + addr + (&Resolver{}).ApiUrl() + "?host=",
+	}
 }
 
 func (self *ResolverApi) Resolve(url string) (*http.Response, error) {
-	resp, err := http.Get("http://" + self.Addr + (&Resolver{}).ApiUrl() + "?host=" + url)
+	resp, err := http.Get(self.prefix + url)
 	return resp, errors.NewErr(err)
 }
 
-func (self *ResolverApi) ResolveAll(urls []string) (*http.Response, error) {
-	q := ""
-	for i, u := range urls {
-		if i == 0 {
-			q += "?"
-		} else {
-			q += "&"
-		}
-		q += "host=" + u
-	}
-	resp, err := http.Get("http://" + self.Addr + (&Resolver{}).ApiUrl() + q)
+func (self *ResolverApi) ResolveAll(hosts []string) (*http.Response, error) {
+	resp, err := http.Get(self.prefix + strings.Join(hosts, "&host="))
 	return resp, errors.NewErr(err)
 }
