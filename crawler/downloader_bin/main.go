@@ -9,6 +9,7 @@ import (
 	"psearch/util/graceful"
 	"psearch/util/log"
 	"strconv"
+	"strings"
 )
 
 func main() {
@@ -31,16 +32,16 @@ func main() {
 
 	http.HandleFunc(downloader.ApiUrl(), graceful.CreateHandler(server, util.CreateErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
 		r.ParseForm()
-		url, err := util.GetParam(r, "url")
+		urls, err := util.GetParams(r, "url")
 		if err != nil {
 			return util.ClientError(err)
 		}
 
-		if err := downloader.Download(w, url); err != nil {
+		if err := downloader.DownloadAll(w, urls); err != nil {
 			return err
 		}
 
-		log.Println("Served URL: " + url)
+		log.Println("Served URLs: " + strings.Join(urls, ", "))
 		return nil
 	})))
 
