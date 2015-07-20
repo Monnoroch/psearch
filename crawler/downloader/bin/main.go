@@ -4,6 +4,7 @@ import (
 	"flag"
 	"net/http"
 	"psearch/crawler/downloader"
+	"psearch/gatekeeper"
 	"psearch/util"
 	"psearch/util/errors"
 	"psearch/util/graceful"
@@ -15,6 +16,7 @@ import (
 func main() {
 	var help = flag.Bool("help", false, "print help")
 	var port = flag.Int("port", -1, "port to listen")
+	var gk = flag.String("gk", "", "gatekeeper address")
 	var gracefulRestart = graceful.SetFlag()
 	flag.Parse()
 
@@ -24,6 +26,9 @@ func main() {
 	}
 
 	dl := &downloader.Downloader{}
+	if *gk != "" {
+		dl.Gk = &gatekeeper.GatekeeperApi{Addr: *gk}
+	}
 	server := graceful.NewServer(http.Server{})
 
 	http.HandleFunc("/favicon.ico", graceful.CreateHandler(server, util.CreateErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
