@@ -3,7 +3,6 @@ package balanser
 import (
 	"io"
 	"net/http"
-	"net/url"
 	"psearch/balanser/chooser"
 	"psearch/util"
 	"psearch/util/errors"
@@ -26,15 +25,7 @@ func (self *Balanser) Request(w http.ResponseWriter, r *http.Request) ([]error, 
 		return nil, util.ClientError(errors.New("Can only process GET requests!"))
 	}
 
-	url := url.URL{
-		Scheme:   r.URL.Scheme,
-		Opaque:   r.URL.Opaque,
-		User:     r.URL.User,
-		Host:     r.URL.Host,
-		Path:     r.URL.Path,
-		RawQuery: r.URL.RawQuery,
-		Fragment: r.URL.Fragment,
-	}
+	url := *r.URL
 	url.Scheme = "http"
 
 	var resErrors []error = nil
