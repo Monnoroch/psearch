@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"psearch/util/errors"
 	"sync"
 	"sync/atomic"
@@ -148,6 +149,21 @@ func (self *Server) ListenAndServe(addr string, graceful bool) error {
 	}
 
 	return self.Serve(l)
+}
+
+func (self *Server) SetSighup() {
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGHUP)
+	go func() {
+		for {
+			s := <-signals
+			switch s {
+			case syscall.SIGHUP:
+				self.Stop()
+			default:
+			}
+		}
+	}()
 }
 
 func CreateHandler(server *Server, handler http.HandlerFunc) http.HandlerFunc {
