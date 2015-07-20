@@ -8,6 +8,7 @@ import (
 	"psearch/balanser/chooser"
 	"psearch/util"
 	"psearch/util/errors"
+	"psearch/util/graceful"
 	"psearch/util/log"
 	"strconv"
 )
@@ -29,6 +30,7 @@ func main() {
 	var rout = flag.String("rout", "random", "routing policy: random, roundrobin")
 	var urls Urls
 	flag.Var(&urls, "url", "backend url")
+	var gracefulRestart = graceful.SetFlag()
 	flag.Parse()
 
 	if *help || *port == -1 || urls == nil {
@@ -42,11 +44,14 @@ func main() {
 		return
 	}
 
-	http.HandleFunc("/favicon.ico", util.CreateErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
-		return nil
-	}))
+	server := graceful.NewServer(http.Server{})
 
-	http.HandleFunc("/", util.CreateErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
+	// NOTE: for testing only, so browser wouldn't spam.
+	http.HandleFunc("/favicon.ico", graceful.CreateHandler(server, util.CreateErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
+		return nil
+	})))
+
+	http.HandleFunc("/", graceful.CreateHandler(server, util.CreateErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
 		failed := map[string]struct{}{}
 		for {
 			if len(failed) == len(urls) {
@@ -86,9 +91,15 @@ func main() {
 			}
 			return errors.NewErr(err)
 		}
-	}))
+	})))
 
-	if err := http.ListenAndServe(":"+strconv.Itoa(*port), nil); err != nil {
+	server.SetSighup()
+
+	if err := server.ListenAndServe(":"+strconv.Itoa(*port), *gracefulRestart); err != nil {
 		log.Fatal(errors.NewErr(err))
+	}
+
+	if err := server.Restart(); err != nil {
+		log.Fatal(err)
 	}
 }
