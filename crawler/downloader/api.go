@@ -10,7 +10,7 @@ type DownloaderApi struct {
 }
 
 func (self *DownloaderApi) Download(url string) (*http.Response, error) {
-	resp, err := http.Get(self.Addr + (&Downloader{}).ApiUrl() + "?url=" + url)
+	resp, err := http.Get("http://" + self.Addr + (&Downloader{}).ApiUrl() + "?url=" + url)
 	return resp, errors.NewErr(err)
 }
 
@@ -24,6 +24,6 @@ func (self *DownloaderApi) DownloadAll(urls []string) (*http.Response, error) {
 		}
 		q += "url=" + u
 	}
-	resp, err := http.Get(self.Addr + (&Downloader{}).ApiUrl() + q)
+	resp, err := http.Get("http://" + self.Addr + (&Downloader{}).ApiUrl() + q)
 	return resp, errors.NewErr(err)
 }
