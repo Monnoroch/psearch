@@ -27,10 +27,6 @@ func NewResolver(cacheTime time.Duration) *Resolver {
 	}
 }
 
-func (self *Resolver) ApiUrl() string {
-	return "/res"
-}
-
 func (self *Resolver) Resolve(host string) ([]net.IP, error) {
 	now := time.Now()
 

@@ -33,7 +33,7 @@ func main() {
 		return nil
 	})))
 
-	http.HandleFunc(resolver.ApiUrl(), graceful.CreateHandler(server, util.CreateErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
+	http.HandleFunc((&dns.ResolverApi{}).ApiUrl(), graceful.CreateHandler(server, util.CreateErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
 		r.ParseForm()
 		urls, err := util.GetParams(r, "host")
 		if err != nil {

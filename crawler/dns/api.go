@@ -10,9 +10,13 @@ type ResolverApi struct {
 	prefix string
 }
 
+func (self *ResolverApi) ApiUrl() string {
+	return "/res"
+}
+
 func NewResolverApi(addr string) ResolverApi {
 	return ResolverApi{
-		prefix: "http://" + addr + (&Resolver{}).ApiUrl() + "?host=",
+		prefix: "http://" + addr + (&ResolverApi{}).ApiUrl() + "?host=",
 	}
 }
 
