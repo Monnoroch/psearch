@@ -10,10 +10,6 @@ import (
 
 type Downloader struct{}
 
-func (self *Downloader) ApiUrl() string {
-	return "/dl"
-}
-
 func (self *Downloader) Download(w http.ResponseWriter, url string) error {
 	resp, err := http.Get(url)
 	if err != nil {

@@ -23,21 +23,21 @@ func main() {
 		return
 	}
 
-	downloader := &downloader.Downloader{}
+	dl := &downloader.Downloader{}
 	server := graceful.NewServer(http.Server{})
 
 	http.HandleFunc("/favicon.ico", graceful.CreateHandler(server, util.CreateErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
 		return nil
 	})))
 
-	http.HandleFunc(downloader.ApiUrl(), graceful.CreateHandler(server, util.CreateErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
+	http.HandleFunc((&downloader.DownloaderApi{}).ApiUrl(), graceful.CreateHandler(server, util.CreateErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
 		r.ParseForm()
 		urls, err := util.GetParams(r, "url")
 		if err != nil {
 			return util.ClientError(err)
 		}
 
-		if err := downloader.DownloadAll(w, urls); err != nil {
+		if err := dl.DownloadAll(w, urls); err != nil {
 			return err
 		}
 
