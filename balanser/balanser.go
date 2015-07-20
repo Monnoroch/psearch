@@ -9,20 +9,15 @@ import (
 )
 
 type Balanser struct {
-	Count  int
-	Router chooser.BackendChooser
+	count  int
+	router chooser.BackendChooser
 }
 
-func NewBalanser(rout string, urls []string) (*Balanser, error) {
-	c, err := chooser.NewChooser(rout, urls)
-	if err != nil {
-		return nil, err
-	}
-
+func NewBalanser(rout chooser.BackendChooser, urls []string) *Balanser {
 	return &Balanser{
-		Count:  len(urls),
-		Router: c,
-	}, nil
+		count:  len(urls),
+		router: rout,
+	}
 }
 
 func (self *Balanser) Request(w http.ResponseWriter, r *http.Request) ([]error, error) {
@@ -33,11 +28,11 @@ func (self *Balanser) Request(w http.ResponseWriter, r *http.Request) ([]error, 
 	var resErrors []error = nil
 	failed := map[string]struct{}{}
 	for {
-		if len(failed) == self.Count {
+		if len(failed) == self.count {
 			return resErrors, errors.New("All backends broken!")
 		}
 
-		backend := self.Router.Choose()
+		backend := self.router.Choose()
 		if _, ok := failed[backend]; ok {
 			continue
 		}

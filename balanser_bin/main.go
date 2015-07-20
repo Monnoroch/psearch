@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"psearch/balanser"
+	"psearch/balanser/chooser"
 	"psearch/util"
 	"psearch/util/errors"
 	"psearch/util/graceful"
@@ -37,12 +38,13 @@ func main() {
 		return
 	}
 
-	balanser, err := balanser.NewBalanser(*rout, urls)
+	router, err := chooser.NewChooser(*rout, urls)
 	if err != nil {
 		flag.PrintDefaults()
 		return
 	}
 
+	balanser := balanser.NewBalanser(router, urls)
 	server := graceful.NewServer(http.Server{})
 
 	// NOTE: for testing only, so browser wouldn't spam.
