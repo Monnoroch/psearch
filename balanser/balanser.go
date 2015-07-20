@@ -3,6 +3,7 @@ package balanser
 import (
 	"io"
 	"net/http"
+	"net/url"
 	"psearch/balanser/chooser"
 	"psearch/util"
 	"psearch/util/errors"
@@ -25,6 +26,17 @@ func (self *Balanser) Request(w http.ResponseWriter, r *http.Request) ([]error, 
 		return nil, util.ClientError(errors.New("Can only process GET requests!"))
 	}
 
+	url := url.URL{
+		Scheme:   r.URL.Scheme,
+		Opaque:   r.URL.Opaque,
+		User:     r.URL.User,
+		Host:     r.URL.Host,
+		Path:     r.URL.Path,
+		RawQuery: r.URL.RawQuery,
+		Fragment: r.URL.Fragment,
+	}
+	url.Scheme = "http"
+
 	var resErrors []error = nil
 	failed := map[string]struct{}{}
 	for {
@@ -32,14 +44,13 @@ func (self *Balanser) Request(w http.ResponseWriter, r *http.Request) ([]error, 
 			return resErrors, errors.New("All backends broken!")
 		}
 
-		backend := self.router.Choose()
+		backend := self.router.Choose(r)
 		if _, ok := failed[backend]; ok {
 			continue
 		}
 
-		r.URL.Scheme = "http"
-		r.URL.Host = backend
-		nreq, err := http.NewRequest("GET", r.URL.String(), nil)
+		url.Host = backend
+		nreq, err := http.NewRequest("GET", url.String(), nil)
 		if err != nil {
 			return resErrors, errors.NewErr(err)
 		}

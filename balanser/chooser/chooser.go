@@ -2,18 +2,19 @@ package chooser
 
 import (
 	"math/rand"
+	"net/http"
 	"psearch/util/errors"
 )
 
 type BackendChooser interface {
-	Choose() string
+	Choose(req *http.Request) string
 }
 
 type randomChooser struct {
 	backends []string
 }
 
-func (self *randomChooser) Choose() string {
+func (self *randomChooser) Choose(req *http.Request) string {
 	return self.backends[rand.Int31n(int32(len(self.backends)))]
 }
 
@@ -28,7 +29,7 @@ type roundRobinChooser struct {
 	num      uint
 }
 
-func (self *roundRobinChooser) Choose() string {
+func (self *roundRobinChooser) Choose(req *http.Request) string {
 	res := self.backends[self.num]
 	self.num += 1
 	if self.num == uint(len(self.backends)) {
