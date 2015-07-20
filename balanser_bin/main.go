@@ -3,9 +3,8 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io"
 	"net/http"
-	"psearch/balanser/chooser"
+	"psearch/balanser"
 	"psearch/util"
 	"psearch/util/errors"
 	"psearch/util/graceful"
@@ -38,7 +37,7 @@ func main() {
 		return
 	}
 
-	router, err := chooser.NewChooser(*rout, urls)
+	balanser, err := balanser.NewBalanser(*rout, urls)
 	if err != nil {
 		flag.PrintDefaults()
 		return
@@ -52,49 +51,11 @@ func main() {
 	})))
 
 	http.HandleFunc("/", graceful.CreateHandler(server, util.CreateErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
-		if r.Method != "GET" {
-			return util.ClientError(errors.New("Can only process GET requests!"))
+		errs, err := balanser.Request(w, r)
+		for _, e := range errs {
+			log.Println(e)
 		}
-
-		failed := map[string]struct{}{}
-		for {
-			if len(failed) == len(urls) {
-				return errors.New("All backends broken!")
-			}
-
-			backend := router.Choose()
-			if _, ok := failed[backend]; ok {
-				continue
-			}
-
-			r.URL.Scheme = "http"
-			r.URL.Host = backend
-			nreq, err := http.NewRequest("GET", r.URL.String(), nil)
-			if err != nil {
-				return errors.NewErr(err)
-			}
-
-			nreq.Header = r.Header
-			resp, err := (&http.Client{}).Do(nreq)
-			if err != nil {
-				failed[backend] = struct{}{}
-				log.Errorln(err)
-				continue
-			}
-			defer resp.Body.Close()
-
-			for k, hs := range resp.Header {
-				for _, val := range hs {
-					w.Header().Add(k, val)
-				}
-			}
-			w.WriteHeader(resp.StatusCode)
-			_, err = io.Copy(w, resp.Body)
-			if err == nil {
-				log.Println("Chosen backend: " + backend)
-			}
-			return errors.NewErr(err)
-		}
+		return err
 	})))
 
 	server.SetSighup()
