@@ -46,11 +46,10 @@ func main() {
 		return nil
 	}))
 
-	maxCount := len(urls)
 	http.HandleFunc("/", util.CreateErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
 		failed := map[string]struct{}{}
 		for {
-			if len(failed) == maxCount {
+			if len(failed) == len(urls) {
 				return errors.New("All backends broken!")
 			}
 
@@ -61,7 +60,13 @@ func main() {
 
 			r.URL.Scheme = "http"
 			r.URL.Host = backend
-			resp, err := http.Get(r.URL.String())
+			nreq, err := http.NewRequest("GET", r.URL.String(), nil)
+			if err != nil {
+				return errors.NewErr(err)
+			}
+
+			nreq.Header = r.Header
+			resp, err := (&http.Client{}).Do(nreq)
 			if err != nil {
 				failed[backend] = struct{}{}
 				log.Errorln(err)
@@ -69,6 +74,12 @@ func main() {
 			}
 			defer resp.Body.Close()
 
+			for k, hs := range resp.Header {
+				for _, val := range hs {
+					w.Header().Add(k, val)
+				}
+			}
+			w.WriteHeader(resp.StatusCode)
 			_, err = io.Copy(w, resp.Body)
 			if err == nil {
 				log.Println("Chosen backend: " + backend)
