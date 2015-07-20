@@ -52,6 +52,10 @@ func main() {
 	})))
 
 	http.HandleFunc("/", graceful.CreateHandler(server, util.CreateErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
+		if r.Method != "GET" {
+			return errors.New("Can only process GET requests!")
+		}
+
 		failed := map[string]struct{}{}
 		for {
 			if len(failed) == len(urls) {
