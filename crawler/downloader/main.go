@@ -4,14 +4,11 @@ import (
 	"flag"
 	"io/ioutil"
 	"net/http"
-	"os"
-	"os/signal"
 	"psearch/util"
 	"psearch/util/errors"
 	"psearch/util/graceful"
 	"psearch/util/log"
 	"strconv"
-	"syscall"
 )
 
 func main() {
@@ -56,20 +53,7 @@ func main() {
 		return err
 	})))
 
-	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, syscall.SIGHUP)
-	go func() {
-		for {
-			s := <-signals
-			switch s {
-			case syscall.SIGHUP:
-				server.Stop()
-				log.Println("stopped!")
-			default:
-				log.Println("Unknown signal.")
-			}
-		}
-	}()
+	server.SetSighup()
 
 	log.Println("serving!")
 	if err := server.ListenAndServe(":"+strconv.Itoa(*port), *gracefulRestart); err != nil {
