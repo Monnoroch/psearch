@@ -55,13 +55,10 @@ func main() {
 
 	server.SetSighup()
 
-	log.Println("serving!")
 	if err := server.ListenAndServe(":"+strconv.Itoa(*port), *gracefulRestart); err != nil {
-		log.Println("served err!")
 		log.Fatal(errors.NewErr(err))
 	}
 
-	log.Println("served ok!")
 	if err := server.Restart(); err != nil {
 		log.Fatal(err)
 	}
