@@ -3,7 +3,6 @@ package chooser
 import (
 	"math/rand"
 	"net/http"
-	"psearch/util/errors"
 )
 
 type BackendChooser interface {
@@ -43,14 +42,4 @@ func NewRoundRobinChooser(backends []string) BackendChooser {
 		backends: backends,
 		num:      0,
 	}
-}
-
-func NewChooser(name string, backends []string) (BackendChooser, error) {
-	if name == "random" {
-		return NewRandomChooser(backends), nil
-	}
-	if name == "roundrobin" {
-		return NewRoundRobinChooser(backends), nil
-	}
-	return nil, errors.New("Unknown name: \"" + name + "\".")
 }

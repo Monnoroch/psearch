@@ -74,3 +74,13 @@ func (self *Balanser) Request(w http.ResponseWriter, r *http.Request) ([]error, 
 		return resErrors, errors.NewErr(err)
 	}
 }
+
+func NewChooser(name string, backends []string) (chooser.BackendChooser, error) {
+	if name == "random" {
+		return chooser.NewRandomChooser(backends), nil
+	}
+	if name == "roundrobin" {
+		return chooser.NewRoundRobinChooser(backends), nil
+	}
+	return nil, errors.New("Unknown name: \"" + name + "\".")
+}

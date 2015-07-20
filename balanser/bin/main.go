@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"psearch/balanser"
-	"psearch/balanser/chooser"
 	"psearch/util"
 	"psearch/util/errors"
 	"psearch/util/graceful"
@@ -38,7 +37,7 @@ func main() {
 		return
 	}
 
-	router, err := chooser.NewChooser(*rout, urls)
+	router, err := balanser.NewChooser(*rout, urls)
 	if err != nil {
 		flag.PrintDefaults()
 		return
