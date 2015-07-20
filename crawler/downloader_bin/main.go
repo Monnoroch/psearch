@@ -33,7 +33,7 @@ func main() {
 		r.ParseForm()
 		url, err := util.GetParam(r, "url")
 		if err != nil {
-			return err
+			return util.ClientError(err)
 		}
 
 		if err := downloader.Download(w, url); err != nil {
