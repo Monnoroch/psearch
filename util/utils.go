@@ -31,6 +31,19 @@ func GetParam(r *http.Request, name string) (string, error) {
 	return sval[0], nil
 }
 
+func GetParamOr(r *http.Request, name string, def string) (string, error) {
+	sval, ok := r.Form[name]
+	if !ok {
+		return def, nil
+	}
+
+	if len(sval) != 1 {
+		return "", errors.New("Too many " + name + " in request params!")
+	}
+
+	return sval[0], nil
+}
+
 func GetParamInt(r *http.Request, name string) (int, error) {
 	sval, err := GetParam(r, name)
 	if err != nil {

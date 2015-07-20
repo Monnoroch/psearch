@@ -44,7 +44,11 @@ func (self *Balanser) Request(w http.ResponseWriter, r *http.Request) ([]error, 
 			return resErrors, errors.New("All backends broken!")
 		}
 
-		backend := self.router.Choose(r)
+		backend, err := self.router.Choose(r)
+		if err != nil {
+			return resErrors, err
+		}
+
 		if _, ok := failed[backend]; ok {
 			continue
 		}
