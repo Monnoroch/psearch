@@ -253,3 +253,17 @@ func Delim(r io.Reader, delim byte) Iterator {
 		reader: bufio.NewReader(r),
 	}
 }
+
+type GeneratorIterator struct {
+	f func() (string, error)
+}
+
+func (self GeneratorIterator) Next() (string, error) {
+	return self.f()
+}
+
+func Generator(f func() (string, error)) Iterator {
+	return &GeneratorIterator{
+		f: f,
+	}
+}
