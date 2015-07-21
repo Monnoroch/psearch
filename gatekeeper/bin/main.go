@@ -84,7 +84,7 @@ func main() {
 			return err
 		}
 
-		log.Printf("Wrote URL: %s: %+v\n", u, val)
+		log.Printf("Wrote URL: %s: %+v; size: %v\n", u, val, gk.TrieSize())
 		return util.SendJson(w, val)
 	})))
 

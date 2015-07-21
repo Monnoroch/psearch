@@ -11,21 +11,21 @@ type nodeT struct {
 	next map[byte]*nodeT
 }
 
-func (self *nodeT) Add(key string, val Value, n int) Value {
+func (self *nodeT) Add(key string, val Value, n int) (Value, int) {
 	if n == len(key) {
 		res := self.val
 		self.val = val
-		return res
+		return res, 0
 	}
 
 	b := byte(key[n])
 	if self.next == nil {
 		t := nodeT{}
-		res := t.Add(key, val, n+1)
+		res, cnt := t.Add(key, val, n+1)
 		self.next = map[byte]*nodeT{
 			b: &t,
 		}
-		return res
+		return res, cnt + 1
 	}
 
 	t, ok := self.next[b]
@@ -33,10 +33,11 @@ func (self *nodeT) Add(key string, val Value, n int) Value {
 		return t.Add(key, val, n+1)
 	} else {
 		t := nodeT{}
-		res := t.Add(key, val, n+1)
+		res, cnt := t.Add(key, val, n+1)
 		self.next[b] = &t
-		return res
+		return res, cnt + 1
 	}
+
 }
 
 func (self *nodeT) Find(key string, n int) (Value, bool) {
@@ -62,11 +63,14 @@ func (self *nodeT) Find(key string, n int) (Value, bool) {
 }
 
 type Trie struct {
-	root nodeT
+	root  nodeT
+	Count int
 }
 
 func (self *Trie) Add(key string, val Value) Value {
-	return self.root.Add(key, val, 0)
+	res, cnt := self.root.Add(key, val, 0)
+	self.Count += cnt
+	return res
 }
 
 func (self *Trie) Find(key string) (Value, bool) {

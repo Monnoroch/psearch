@@ -282,3 +282,7 @@ func (self *Gatekeeper) Read(key string, val trie.Value, w io.Writer) error {
 func (self *Gatekeeper) Find(key string) (trie.Value, bool) {
 	return self.trie.Find(key)
 }
+
+func (self *Gatekeeper) TrieSize() int {
+	return self.trie.Count
+}
