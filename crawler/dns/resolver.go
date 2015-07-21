@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"psearch/util"
 	"psearch/util/errors"
+	"psearch/util/iter"
 	"psearch/util/log"
 	"sync"
 	"time"
@@ -18,6 +19,7 @@ type dataT struct {
 type Resolver struct {
 	cacheTime time.Duration
 	cache     map[string]dataT
+	mutex     sync.RWMutex
 }
 
 func NewResolver(cacheTime time.Duration) *Resolver {
@@ -27,50 +29,63 @@ func NewResolver(cacheTime time.Duration) *Resolver {
 	}
 }
 
-func (self *Resolver) ResolveAll(w http.ResponseWriter, hosts []string) error {
-	now := time.Now()
-
+func (self *Resolver) ResolveAll(w http.ResponseWriter, hosts iter.Iterator) error {
 	type resultData struct {
-		Err error
-		Res []net.IP
+		Err  error
+		Res  []net.IP
+		host string
 	}
 
-	results := make([]resultData, len(hosts))
-
+	results := make([]*resultData, 0)
 	wg := sync.WaitGroup{}
-	wg.Add(len(hosts))
-	for i, h := range hosts {
+	now := time.Now()
+	err := iter.Do(hosts, func(h string) error {
+		res := &resultData{
+			host: h,
+		}
+		results = append(results, res)
+		self.mutex.RLock()
 		r, ok := self.cache[h]
+		self.mutex.RUnlock()
 		if ok && now.Before(r.end) {
-			results[i].Res = r.ips
-			continue
+			res.Res = r.ips
+			return nil
 		}
 
-		go func(idx int, host string) {
+		wg.Add(1)
+		go func(res *resultData, r *dataT, ok bool) {
 			defer wg.Done()
 
-			res, err := net.LookupIP(host)
+			val, err := net.LookupIP(res.host)
 			if err != nil {
 				if ok {
-					results[idx].Res = r.ips
-					results[idx].Err = errors.NewErr(err)
+					res.Res = r.ips
+					res.Err = errors.NewErr(err)
 				} else {
-					results[idx].Err = errors.NewErr(err)
+					res.Err = errors.NewErr(err)
 				}
 			}
 
-			self.cache[host] = dataT{
-				ips: res,
+			d := dataT{
+				ips: val,
 				end: now.Add(self.cacheTime),
 			}
+			self.mutex.Lock()
+			self.cache[res.host] = d
+			self.mutex.Unlock()
 
-			results[idx].Res = res
-		}(i, h)
+			res.Res = val
+		}(res, &r, ok)
+		return nil
+	})
+	if err != nil {
+		return err
 	}
+
 	wg.Wait()
 
 	result := map[string]HostResult{}
-	for i, v := range results {
+	for _, v := range results {
 		r := HostResult{}
 		if v.Err != nil {
 			r.Err = v.Err.Error()
@@ -88,7 +103,7 @@ func (self *Resolver) ResolveAll(w http.ResponseWriter, hosts []string) error {
 		} else {
 			r.Status = "error"
 		}
-		result[hosts[i]] = r
+		result[v.host] = r
 	}
 	return util.SendJson(w, result)
 }

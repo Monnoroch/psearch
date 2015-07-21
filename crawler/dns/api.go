@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"psearch/util/errors"
-	"strings"
+	"psearch/util/iter"
 )
 
 type HostResult struct {
@@ -23,12 +23,17 @@ func (self *ResolverApi) ApiUrl() string {
 
 func NewResolverApi(addr string) ResolverApi {
 	return ResolverApi{
-		prefix: "http://" + addr + (&ResolverApi{}).ApiUrl() + "?host=",
+		prefix: "http://" + addr + (&ResolverApi{}).ApiUrl(),
 	}
 }
 
-func (self *ResolverApi) ResolveAll(hosts []string) (map[string]HostResult, error) {
-	resp, err := http.Get(self.prefix + strings.Join(hosts, "&host="))
+func (self *ResolverApi) ResolveAll(hosts iter.Iterator) (map[string]HostResult, error) {
+	req, err := http.NewRequest("GET", self.prefix, iter.ReadDelim(hosts, []byte("\t")))
+	if err != nil {
+		return nil, errors.NewErr(err)
+	}
+
+	resp, err := (&http.Client{}).Do(req)
 	if err != nil {
 		return nil, errors.NewErr(err)
 	}

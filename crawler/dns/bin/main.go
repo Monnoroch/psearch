@@ -7,6 +7,7 @@ import (
 	"psearch/util"
 	"psearch/util/errors"
 	"psearch/util/graceful"
+	"psearch/util/iter"
 	"psearch/util/log"
 	"strconv"
 	"strings"
@@ -35,16 +36,12 @@ func main() {
 
 	http.HandleFunc((&dns.ResolverApi{}).ApiUrl(), graceful.CreateHandler(server, util.CreateErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
 		r.ParseForm()
-		urls, err := util.GetParams(r, "host")
-		if err != nil {
-			return util.ClientError(err)
-		}
-
-		if err := resolver.ResolveAll(w, urls); err != nil {
+		hosts := util.GetParams(r, "host")
+		if err := resolver.ResolveAll(w, iter.Chain(iter.Array(hosts), iter.Delim(r.Body, '\t'))); err != nil {
 			return err
 		}
 
-		log.Println("Resolved hosts: " + strings.Join(urls, ", "))
+		log.Println("Resolved hosts: " + strings.Join(hosts, ", "))
 		return nil
 	})))
 
