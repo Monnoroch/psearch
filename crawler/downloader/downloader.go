@@ -1,59 +1,14 @@
 package downloader
 
 import (
-	"bytes"
 	"io/ioutil"
 	"net/http"
-	"psearch/gatekeeper"
 	"psearch/util"
 	"psearch/util/errors"
-	"psearch/util/log"
 	"sync"
 )
 
-type Downloader struct {
-	Gk *gatekeeper.GatekeeperApi
-}
-
-func (self *Downloader) Download(w http.ResponseWriter, url string) error {
-	resp, err := http.Get(url)
-	if err != nil {
-		return errors.NewErr(err)
-	}
-	defer resp.Body.Close()
-
-	// TODO: do not read all, io.Copy instead
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return errors.NewErr(err)
-	}
-
-	if self.Gk != nil {
-		go func(url string, body []byte) {
-			resp, err := self.Gk.Write(url, bytes.NewReader(body))
-			if err != nil {
-				log.Errorln(err)
-				return
-			}
-			defer resp.Body.Close()
-
-			b, err := ioutil.ReadAll(resp.Body)
-			if err != nil {
-				log.Errorln(err)
-				return
-			}
-
-			log.Println(string(b))
-		}(url, body)
-	}
-
-	return util.SendJson(w, map[string]map[string]string{
-		url: map[string]string{
-			"status": "ok",
-			"res":    string(body),
-		},
-	})
-}
+type Downloader struct{}
 
 func (self *Downloader) DownloadAll(w http.ResponseWriter, urls []string) error {
 	type resultData struct {
@@ -70,37 +25,18 @@ func (self *Downloader) DownloadAll(w http.ResponseWriter, urls []string) error 
 
 			resp, err := http.Get(url)
 			if err != nil {
-				res[idx].Err = err
+				res[idx].Err = errors.NewErr(err)
 				return
 			}
 			defer resp.Body.Close()
 
 			body, err := ioutil.ReadAll(resp.Body)
 			if err != nil {
-				res[idx].Err = err
+				res[idx].Err = errors.NewErr(err)
 				return
 			}
 
 			res[idx].Res = string(body)
-
-			if self.Gk != nil {
-				go func(url string, body []byte) {
-					resp, err := self.Gk.Write(url, bytes.NewReader(body))
-					if err != nil {
-						log.Errorln(err)
-						return
-					}
-					defer resp.Body.Close()
-
-					b, err := ioutil.ReadAll(resp.Body)
-					if err != nil {
-						log.Errorln(err)
-						return
-					}
-
-					log.Println(string(b))
-				}(url, body)
-			}
 		}(i, u)
 	}
 	wg.Wait()
