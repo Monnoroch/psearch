@@ -45,7 +45,7 @@ func (self *Balanser) Request(w http.ResponseWriter, r *http.Request) ([]error, 
 		}
 
 		url.Host = backend
-		nreq, err := http.NewRequest("GET", url.String(), nil)
+		nreq, err := http.NewRequest("GET", url.String(), r.Body)
 		if err != nil {
 			return resErrors, errors.NewErr(err)
 		}
