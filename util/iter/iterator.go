@@ -28,6 +28,17 @@ func Collect(it Iterator) ([]string, error) {
 	return res, nil
 }
 
+func Count(it Iterator) (uint, error) {
+	res := uint(0)
+	for _, err := it.Next(); err != EOI; _, err = it.Next() {
+		if err != nil {
+			return 0, err
+		}
+		res += 1
+	}
+	return res, nil
+}
+
 type MapIterator struct {
 	it Iterator
 	f func(string) (string, error)
