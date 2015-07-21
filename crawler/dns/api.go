@@ -1,10 +1,17 @@
 package dns
 
 import (
+	"encoding/json"
 	"net/http"
 	"psearch/util/errors"
 	"strings"
 )
+
+type HostResult struct {
+	Status string   "json:`status`"
+	Err    string   "json:`err`"
+	Ips    []string "json:`ips`"
+}
 
 type ResolverApi struct {
 	prefix string
@@ -20,12 +27,17 @@ func NewResolverApi(addr string) ResolverApi {
 	}
 }
 
-func (self *ResolverApi) Resolve(url string) (*http.Response, error) {
-	resp, err := http.Get(self.prefix + url)
-	return resp, errors.NewErr(err)
-}
-
-func (self *ResolverApi) ResolveAll(hosts []string) (*http.Response, error) {
+func (self *ResolverApi) ResolveAll(hosts []string) (map[string]HostResult, error) {
 	resp, err := http.Get(self.prefix + strings.Join(hosts, "&host="))
-	return resp, errors.NewErr(err)
+	if err != nil {
+		return nil, errors.NewErr(err)
+	}
+	defer resp.Body.Close()
+
+	var res map[string]HostResult
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		return nil, errors.NewErr(err)
+	}
+
+	return res, nil
 }

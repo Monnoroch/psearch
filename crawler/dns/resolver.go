@@ -27,30 +27,6 @@ func NewResolver(cacheTime time.Duration) *Resolver {
 	}
 }
 
-func (self *Resolver) Resolve(host string) ([]net.IP, error) {
-	now := time.Now()
-
-	r, ok := self.cache[host]
-	if ok && now.Before(r.end) {
-		return r.ips, nil
-	}
-
-	res, err := net.LookupIP(host)
-	if err != nil {
-		if ok {
-			return r.ips, errors.NewErr(err)
-		} else {
-			return nil, errors.NewErr(err)
-		}
-	}
-
-	self.cache[host] = dataT{
-		ips: res,
-		end: now.Add(self.cacheTime),
-	}
-	return res, nil
-}
-
 func (self *Resolver) ResolveAll(w http.ResponseWriter, hosts []string) error {
 	now := time.Now()
 
@@ -93,20 +69,26 @@ func (self *Resolver) ResolveAll(w http.ResponseWriter, hosts []string) error {
 	}
 	wg.Wait()
 
-	result := map[string]map[string]interface{}{}
+	result := map[string]HostResult{}
 	for i, v := range results {
-		m := map[string]interface{}{}
-		if v.Res != nil {
-			m["status"] = "ok"
-			m["res"] = v.Res
-			if v.Err != nil {
+		r := HostResult{}
+		if v.Err != nil {
+			r.Err = v.Err.Error()
+			if v.Res != nil {
 				log.Errorln(v.Err)
 			}
-		} else {
-			m["status"] = "error"
-			m["res"] = v.Err.Error()
 		}
-		result[hosts[i]] = m
+
+		if v.Res != nil {
+			r.Status = "ok"
+			r.Ips = make([]string, 0, len(v.Res))
+			for _, v := range v.Res {
+				r.Ips = append(r.Ips, v.String())
+			}
+		} else {
+			r.Status = "error"
+		}
+		result[hosts[i]] = r
 	}
 	return util.SendJson(w, result)
 }
