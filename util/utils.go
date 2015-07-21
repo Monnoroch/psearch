@@ -58,13 +58,13 @@ func GetParamInt(r *http.Request, name string) (int, error) {
 	return val, nil
 }
 
-func GetParams(r *http.Request, name string) ([]string, error) {
+func GetParams(r *http.Request, name string) []string {
 	sval, ok := r.Form[name]
 	if !ok {
-		return nil, errors.New("No " + name + " in request params!")
+		return []string{}
 	}
 
-	return sval, nil
+	return sval
 }
 
 ///////////////
