@@ -41,17 +41,17 @@ func (self *Downloader) DownloadAll(w http.ResponseWriter, urls []string) error 
 	}
 	wg.Wait()
 
-	result := map[string]map[string]string{}
+	result := map[string]DownloadResult{}
 	for i, v := range res {
-		m := map[string]string{}
+		r := DownloadResult{}
 		if v.Err != nil {
-			m["status"] = "error"
-			m["res"] = v.Err.Error()
+			r.Status = "error"
+			r.Res = v.Err.Error()
 		} else {
-			m["status"] = "ok"
-			m["res"] = v.Res
+			r.Status = "ok"
+			r.Res = v.Res
 		}
-		result[urls[i]] = m
+		result[urls[i]] = r
 	}
 	return util.SendJson(w, result)
 }
