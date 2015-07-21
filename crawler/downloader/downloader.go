@@ -5,44 +5,55 @@ import (
 	"net/http"
 	"psearch/util"
 	"psearch/util/errors"
+	"psearch/util/iter"
 	"sync"
 )
 
 type Downloader struct{}
 
-func (self *Downloader) DownloadAll(w http.ResponseWriter, urls []string) error {
+func (self *Downloader) DownloadAll(w http.ResponseWriter, urls iter.Iterator) error {
 	type resultData struct {
 		Err error
 		Res string
+		Url string
 	}
 
-	res := make([]resultData, len(urls))
+	results := make([]*resultData, 0)
 	wg := sync.WaitGroup{}
-	wg.Add(len(urls))
-	for i, u := range urls {
-		go func(idx int, url string) {
+	err := iter.Do(urls, func(u string) error {
+		res := &resultData{
+			Url: u,
+		}
+		results = append(results, res)
+		wg.Add(1)
+		go func(res *resultData) {
 			defer wg.Done()
 
-			resp, err := http.Get(url)
+			resp, err := http.Get(res.Url)
 			if err != nil {
-				res[idx].Err = errors.NewErr(err)
+				res.Err = errors.NewErr(err)
 				return
 			}
 			defer resp.Body.Close()
 
 			body, err := ioutil.ReadAll(resp.Body)
 			if err != nil {
-				res[idx].Err = errors.NewErr(err)
+				res.Err = errors.NewErr(err)
 				return
 			}
 
-			res[idx].Res = string(body)
-		}(i, u)
+			res.Res = string(body)
+		}(res)
+		return nil
+	})
+	if err != nil {
+		return err
 	}
+
 	wg.Wait()
 
 	result := map[string]DownloadResult{}
-	for i, v := range res {
+	for _, v := range results {
 		r := DownloadResult{}
 		if v.Err != nil {
 			r.Status = "error"
@@ -51,7 +62,7 @@ func (self *Downloader) DownloadAll(w http.ResponseWriter, urls []string) error 
 			r.Status = "ok"
 			r.Res = v.Res
 		}
-		result[urls[i]] = r
+		result[v.Url] = r
 	}
 	return util.SendJson(w, result)
 }

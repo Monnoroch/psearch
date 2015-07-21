@@ -7,6 +7,7 @@ import (
 	"psearch/util"
 	"psearch/util/errors"
 	"psearch/util/graceful"
+	"psearch/util/iter"
 	"psearch/util/log"
 	"strconv"
 	"strings"
@@ -32,12 +33,8 @@ func main() {
 
 	http.HandleFunc((&downloader.DownloaderApi{}).ApiUrl(), graceful.CreateHandler(server, util.CreateErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
 		r.ParseForm()
-		urls, err := util.GetParams(r, "url")
-		if err != nil {
-			return util.ClientError(err)
-		}
-
-		if err := dl.DownloadAll(w, urls); err != nil {
+		urls := util.GetParams(r, "url")
+		if err := dl.DownloadAll(w, iter.Chain(iter.Array(urls), iter.Delim(r.Body, '\t'))); err != nil {
 			return err
 		}
 

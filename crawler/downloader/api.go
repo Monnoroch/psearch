@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"psearch/util/errors"
+	"psearch/util/iter"
 )
 
 type DownloadResult struct {
@@ -19,17 +20,13 @@ func (self *DownloaderApi) ApiUrl() string {
 	return "/dl"
 }
 
-func (self *DownloaderApi) DownloadAll(urls []string) (map[string]DownloadResult, error) {
-	q := ""
-	for i, u := range urls {
-		if i == 0 {
-			q += "?"
-		} else {
-			q += "&"
-		}
-		q += "url=" + u
+func (self *DownloaderApi) DownloadAll(urls iter.Iterator) (map[string]DownloadResult, error) {
+	req, err := http.NewRequest("GET", "http://"+self.Addr+self.ApiUrl(), iter.ReadDelim(urls, []byte("\t")))
+	if err != nil {
+		return nil, errors.NewErr(err)
 	}
-	resp, err := http.Get("http://" + self.Addr + self.ApiUrl() + q)
+
+	resp, err := (&http.Client{}).Do(req)
 	if err != nil {
 		return nil, errors.NewErr(err)
 	}
