@@ -267,3 +267,22 @@ func Generator(f func() (string, error)) Iterator {
 		f: f,
 	}
 }
+
+type ChannelIterator struct {
+	c chan string
+}
+
+func (self ChannelIterator) Next() (string, error) {
+	res, ok := <-self.c
+	if !ok {
+		return "", EOI
+	}
+
+	return res, nil
+}
+
+func Channel(c chan string) Iterator {
+	return ChannelIterator{
+		c: c,
+	}
+}
