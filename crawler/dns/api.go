@@ -2,7 +2,7 @@ package dns
 
 import (
 	"encoding/json"
-	"net/http"
+	"psearch/util"
 	"psearch/util/errors"
 	"psearch/util/iter"
 )
@@ -28,12 +28,7 @@ func NewResolverApi(addr string) ResolverApi {
 }
 
 func (self *ResolverApi) ResolveAll(hosts iter.Iterator) (map[string]HostResult, error) {
-	req, err := http.NewRequest("GET", self.prefix, iter.ReadDelim(hosts, []byte("\t")))
-	if err != nil {
-		return nil, errors.NewErr(err)
-	}
-
-	resp, err := (&http.Client{}).Do(req)
+	resp, err := util.DoIterTsvRequest(self.prefix, hosts)
 	if err != nil {
 		return nil, errors.NewErr(err)
 	}

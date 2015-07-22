@@ -2,7 +2,7 @@ package downloader
 
 import (
 	"encoding/json"
-	"net/http"
+	"psearch/util"
 	"psearch/util/errors"
 	"psearch/util/iter"
 )
@@ -21,12 +21,7 @@ func (self *DownloaderApi) ApiUrl() string {
 }
 
 func (self *DownloaderApi) DownloadAll(urls iter.Iterator) (map[string]DownloadResult, error) {
-	req, err := http.NewRequest("GET", "http://"+self.Addr+self.ApiUrl(), iter.ReadDelim(urls, []byte("\t")))
-	if err != nil {
-		return nil, errors.NewErr(err)
-	}
-
-	resp, err := (&http.Client{}).Do(req)
+	resp, err := util.DoIterTsvRequest("http://"+self.Addr+self.ApiUrl(), urls)
 	if err != nil {
 		return nil, errors.NewErr(err)
 	}
