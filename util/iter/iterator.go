@@ -126,7 +126,7 @@ type IteratorReader struct {
 	written      uint
 	delim        []byte
 	writtenDelim uint
-	start bool
+	start        bool
 }
 
 func (self *IteratorReader) Read(p []byte) (int, error) {
@@ -219,7 +219,7 @@ func ReadDelim(it Iterator, delim []byte) io.Reader {
 		delim:        delim,
 		written:      0,
 		writtenDelim: uint(len(delim)),
-		start: true,
+		start:        true,
 	}
 }
 
@@ -272,17 +272,23 @@ func Array(arr []string) Iterator {
 type DelimIterator struct {
 	delim  byte
 	reader *bufio.Reader
-	done bool
+	done   bool
 }
 
-func (self*DelimIterator) Next() (string, error) {
+func (self *DelimIterator) Next() (string, error) {
 	if self.done {
 		return "", EOI
 	}
 
 	next, err := self.reader.ReadString(self.delim)
 	if err == io.EOF {
-		self.done = true
+		bnext := []byte(next)
+		blen := len(bnext)
+		if blen == 0 {
+			return "", EOI
+		}
+
+		self.done = bnext[blen-1] != self.delim
 		return next, nil
 	}
 	return next[:len(next)-1], err
@@ -292,7 +298,7 @@ func Delim(r io.Reader, delim byte) Iterator {
 	return &DelimIterator{
 		delim:  delim,
 		reader: bufio.NewReader(r),
-		done: false,
+		done:   false,
 	}
 }
 
