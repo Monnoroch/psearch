@@ -26,7 +26,7 @@ func main() {
 	var gracefulRestart = graceful.SetFlag()
 	flag.Parse()
 
-	if *help || *port == -1 || *dlerArrd == "" || *dnsAddr == "" {
+	if *help || *port == -1 || *dlerArrd == "" {
 		flag.PrintDefaults()
 		return
 	}

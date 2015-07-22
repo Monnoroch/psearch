@@ -9,6 +9,7 @@ import (
 	"psearch/util/errors"
 	"psearch/util/iter"
 	"psearch/util/log"
+	"strings"
 	"sync"
 	"time"
 )
@@ -23,7 +24,7 @@ type hostData struct {
 
 type Caregiver struct {
 	downloader      downloader.DownloaderApi
-	dns             dns.ResolverApi
+	dns             *dns.ResolverApi
 	hosts           map[string]*hostData
 	mutex           sync.Mutex
 	defaultTimeout  time.Duration
@@ -35,11 +36,10 @@ type Caregiver struct {
 }
 
 func NewCaregiver(dlAddr, dnsAddr string, defaultMaxCount uint, defaultTimeout, pullTimeout, workTimeout time.Duration) *Caregiver {
-	return &Caregiver{
+	res := &Caregiver{
 		downloader: downloader.DownloaderApi{
 			Addr: dlAddr,
 		},
-		dns:             dns.NewResolverApi(dnsAddr),
 		hosts:           map[string]*hostData{},
 		defaultTimeout:  defaultTimeout,
 		defaultMaxCount: defaultMaxCount,
@@ -47,6 +47,10 @@ func NewCaregiver(dlAddr, dnsAddr string, defaultMaxCount uint, defaultTimeout, 
 		pullTimeout:     pullTimeout,
 		WorkTimeout:     workTimeout,
 	}
+	if dnsAddr != "" {
+		res.dns = dns.NewResolverApi(dnsAddr)
+	}
+	return res
 }
 
 func (self *Caregiver) PushUrls(urls iter.Iterator) error {
@@ -126,24 +130,34 @@ func (self *Caregiver) Start() error {
 			hosts = append(hosts, k)
 		}
 
-		ips, err := self.dns.ResolveAll(iter.Array(hosts))
-		if err != nil {
-			return err
-		}
+		var err error
+		ips := map[string]dns.HostResult{}
 
-		// если какие-то хосты не зарезолвились, удалим
-		now = time.Now()
-		for k, v := range ips {
-			if v.Ips == nil {
-				delete(data, k)
+		if self.dns != nil {
+			ips, err = self.dns.ResolveAll(iter.Array(hosts))
+			if err != nil {
+				return err
 			}
 		}
 
+		now = time.Now()
 		// можно качать!
 		// TODO: iter.Generator!
 		urls := []string{}
 		for k, v := range data {
-			host := "http://" + ips[k].Ips[0] + "/"
+			/*
+				TODO: запросы по ip почему-то не работаютю.
+				Подозреваю, что сервер читает RequestURL и нужно будет реализовать свой стек http, чтобы все заработало.
+			*/
+
+			ip := k
+			if v, ok := ips[k]; ok && len(v.Ips) != 0 {
+				ip = v.Ips[0]
+				if strings.Contains(ip, ":") {
+					ip = "[" + ip + "]:80"
+				}
+			}
+			host := "http://" + ip + "/"
 			us := v.urls.DequeueN(v.maxCount)
 			for i := 0; i < len(us); i += 1 {
 				us[i] = host + us[i]
