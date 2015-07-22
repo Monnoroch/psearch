@@ -29,8 +29,8 @@ func (self *Queue) Enqueue(val string) {
 
 func (self *Queue) EnqueueAll(vals ...string) {
 	n := len(vals)
-	lastLen := len(self.array)
-	total := lastLen + n
+	lastLen := self.Len()
+	total := len(self.array) + n
 	if cap(self.array) < total {
 		self.realloc(uint(n))
 	}
