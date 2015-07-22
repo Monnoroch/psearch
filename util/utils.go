@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"net/http"
 	"psearch/util/errors"
+	"psearch/util/iter"
 	"psearch/util/log"
 	"strconv"
 	"time"
@@ -94,4 +95,21 @@ func CreateErrorHandler(handler ErrorHandlerT) http.HandlerFunc {
 			}
 		}
 	}
+}
+
+///////////////
+
+func DoIterTsvRequest(url string, it iter.Iterator) (*http.Response, error) {
+	req, err := http.NewRequest("GET", url, iter.ReadDelim(it, []byte("\t")))
+	if err != nil {
+		return nil, errors.NewErr(err)
+	}
+	req.ContentLength = -1
+
+	resp, err := (&http.Client{}).Do(req)
+	if err != nil {
+		return nil, errors.NewErr(err)
+	}
+
+	return resp, nil
 }
