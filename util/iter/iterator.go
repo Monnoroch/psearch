@@ -126,9 +126,42 @@ type IteratorReader struct {
 	written      uint
 	delim        []byte
 	writtenDelim uint
+	start bool
 }
 
 func (self *IteratorReader) Read(p []byte) (int, error) {
+	if self.start {
+		if self.written == 0 {
+			v, err := self.it.Next()
+			if err == EOI {
+				return 0, io.EOF
+			}
+			if err != nil {
+				return 0, err
+			}
+
+			self.val = v
+		}
+
+		val := []byte(self.val)
+		needWrite := uint(len(p))
+		cnt := uint(len(val))
+		if needWrite <= cnt {
+			copy(p, []byte(val[:needWrite]))
+			self.written += needWrite
+			return int(needWrite), nil
+		} else {
+			copy(p[:cnt], []byte(val))
+			self.written += cnt
+			self.start = false
+			n, err := self.Read(p[cnt:])
+			if err != nil && err != io.EOF {
+				return 0, err
+			}
+			return int(cnt) + n, err
+		}
+	}
+
 	if self.written == uint(len(self.val)) {
 		if self.writtenDelim == uint(len(self.delim)) {
 			v, err := self.it.Next()
@@ -140,9 +173,8 @@ func (self *IteratorReader) Read(p []byte) (int, error) {
 			}
 
 			self.val = v
-			self.written = 0
+			self.written = uint(len(self.val))
 			self.writtenDelim = 0
-			return self.Read(p)
 		}
 
 		needWrite := uint(len(p))
@@ -154,28 +186,30 @@ func (self *IteratorReader) Read(p []byte) (int, error) {
 		} else {
 			copy(p[:cnt], self.delim)
 			self.writtenDelim += cnt
+			self.written = 0
 			n, err := self.Read(p[cnt:])
-			if err != nil {
+			if err != nil && err != io.EOF {
 				return 0, err
 			}
-			return int(cnt) + n, nil
+			return int(cnt) + n, err
 		}
 	}
 
+	val := []byte(self.val)
 	needWrite := uint(len(p))
-	cnt := uint(len(self.val))
+	cnt := uint(len(val))
 	if needWrite <= cnt {
-		copy(p, self.val[:needWrite])
-		self.writtenDelim += needWrite
+		copy(p, []byte(val[:needWrite]))
+		self.written += needWrite
 		return int(needWrite), nil
 	} else {
-		copy(p[:cnt], self.val)
-		self.writtenDelim += cnt
+		copy(p[:cnt], []byte(val))
+		self.written += cnt
 		n, err := self.Read(p[cnt:])
-		if err != nil {
+		if err != nil && err != io.EOF {
 			return 0, err
 		}
-		return int(cnt) + n, nil
+		return int(cnt) + n, err
 	}
 }
 
@@ -184,7 +218,8 @@ func ReadDelim(it Iterator, delim []byte) io.Reader {
 		it:           it,
 		delim:        delim,
 		written:      0,
-		writtenDelim: 0,
+		writtenDelim: uint(len(delim)),
+		start: true,
 	}
 }
 
@@ -237,20 +272,27 @@ func Array(arr []string) Iterator {
 type DelimIterator struct {
 	delim  byte
 	reader *bufio.Reader
+	done bool
 }
 
-func (self DelimIterator) Next() (string, error) {
-	next, err := self.reader.ReadString(self.delim)
-	if err == io.EOF {
+func (self*DelimIterator) Next() (string, error) {
+	if self.done {
 		return "", EOI
 	}
-	return next, err
+
+	next, err := self.reader.ReadString(self.delim)
+	if err == io.EOF {
+		self.done = true
+		return next, nil
+	}
+	return next[:len(next)-1], err
 }
 
 func Delim(r io.Reader, delim byte) Iterator {
-	return DelimIterator{
+	return &DelimIterator{
 		delim:  delim,
 		reader: bufio.NewReader(r),
+		done: false,
 	}
 }
 
