@@ -159,7 +159,7 @@ func (self *Gatekeeper) load(name string, num uint, counts map[uint]uint) error 
 			Offset: cnt,
 			Len:    n1 + n2,
 		}
-		old := self.trie.Add(u, nv)
+		old := self.trie.Add([]byte(u), nv)
 		if old.Len != 0 {
 			counts[old.FNum] -= 1
 		}
@@ -239,7 +239,7 @@ func (self *Gatekeeper) Write(url, key string, data []byte) (trie.Value, error) 
 		Len:    uint64(cnt),
 	}
 
-	self.trie.Add(key, res)
+	self.trie.Add([]byte(key), res)
 
 	// TODO: remove
 	self.file.file.Sync()
@@ -247,42 +247,87 @@ func (self *Gatekeeper) Write(url, key string, data []byte) (trie.Value, error) 
 	return res, nil
 }
 
-func (self *Gatekeeper) Read(key string, val trie.Value, w io.Writer) error {
+func (self *Gatekeeper) Read(val trie.Value) (string, error) {
 	f, err := util.Open(self.dir + "/" + strconv.Itoa(int(val.FNum)))
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	if _, err := f.Seek(int64(val.Offset), 0); err != nil {
-		return err
+		return "", err
 	}
 
 	if _, err := f.SkipLenval(); err != nil {
-		return err
+		return "", err
 	}
 
 	_, res, err := f.ReadLenval()
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	if _, err := w.Write([]byte(key)); err != nil {
-		return errors.NewErr(err)
-	}
-	if _, err := w.Write([]byte("\t")); err != nil {
-		return errors.NewErr(err)
-	}
-	if _, err := w.Write([]byte(res)); err != nil {
-		return errors.NewErr(err)
-	}
-
-	return nil
+	return string(res), nil
 }
 
 func (self *Gatekeeper) Find(key string) (trie.Value, bool) {
-	return self.trie.Find(key)
+	return self.trie.Find([]byte(key))
 }
 
 func (self *Gatekeeper) TrieSize() int {
 	return self.trie.Count
+}
+
+type GatekeeperServer struct {
+	Gatekeeper *Gatekeeper
+}
+
+func (self *GatekeeperServer) Find(args *FindArgs, result *FindResult) error {
+	key, err := UrlTransform(args.Url)
+	if err != nil {
+		return err
+	}
+
+	if r, ok := self.Gatekeeper.Find(key); ok {
+		*result = FindResult{
+			Val: &r,
+		}
+	}
+	return nil
+}
+
+func (self *GatekeeperServer) Read(args *FindArgs, result *ReadResult) error {
+	key, err := UrlTransform(args.Url)
+	if err != nil {
+		return err
+	}
+
+	r, ok := self.Gatekeeper.Find(key)
+	if !ok {
+		return nil
+	}
+
+	data, err := self.Gatekeeper.Read(r)
+	if err != nil {
+		return err
+	}
+
+	*result = ReadResult{FindResult{Val: &r}, &data}
+	return nil
+}
+
+func (self *GatekeeperServer) Write(args *WriteArgs, result *FindResult) error {
+	key, err := UrlTransform(args.Url)
+	if err != nil {
+		return err
+	}
+
+	r, err := self.Gatekeeper.Write(args.Url, key, []byte(args.Body))
+	if err != nil {
+		return err
+	}
+
+	*result = FindResult{
+		Val: &r,
+	}
+	return nil
 }

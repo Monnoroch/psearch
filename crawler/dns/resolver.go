@@ -2,10 +2,7 @@ package dns
 
 import (
 	"net"
-	"net/http"
-	"psearch/util"
 	"psearch/util/errors"
-	"psearch/util/iter"
 	"psearch/util/log"
 	"sync"
 	"time"
@@ -29,86 +26,86 @@ func NewResolver(cacheTime time.Duration) *Resolver {
 	}
 }
 
-func (self *Resolver) ResolveAll(w http.ResponseWriter, hosts iter.Iterator) error {
-	type resultData struct {
-		Err  error
-		Res  []net.IP
-		host string
+func (self *Resolver) load(data *dataT, res *[]string) {
+	*res = make([]string, len(data.ips))
+	for i, v := range data.ips {
+		(*res)[i] = v.String()
+	}
+}
+
+func (self *Resolver) Resolve(host string) ([]string, error) {
+	self.mutex.RLock()
+	r, hacheHit := self.cache[host]
+	self.mutex.RUnlock()
+
+	var res []string
+	if hacheHit && time.Now().Before(r.end) {
+		self.load(&r, &res)
+		return res, nil
 	}
 
-	results := make([]*resultData, 0)
-	wg := sync.WaitGroup{}
-	now := time.Now()
-	err := iter.Do(hosts, func(h string) error {
-		res := &resultData{
-			host: h,
+	val, err := net.LookupIP(host)
+	if err != nil {
+		err = errors.NewErr(err)
+		if hacheHit {
+			self.load(&r, &res)
+			log.Errorln(err)
+			return res, nil
 		}
-		results = append(results, res)
-		self.mutex.RLock()
-		r, ok := self.cache[h]
-		self.mutex.RUnlock()
-		if ok && now.Before(r.end) {
-			res.Res = r.ips
-			return nil
+		return nil, err
+	}
+
+	d := dataT{
+		ips: make([]net.IP, 0, len(val)),
+		end: time.Now().Add(self.cacheTime),
+	}
+	for _, v := range val {
+		// if ip4 := v.To4(); len(ip4) == net.IPv4len {
+		d.ips = append(d.ips, v)
+		// }
+	}
+
+	self.mutex.Lock()
+	self.cache[host] = d
+	self.mutex.Unlock()
+
+	self.load(&d, &res)
+	return res, nil
+}
+
+func (self *Resolver) ResolveAll(hosts []string) ([][]string, error) {
+	res := make([][]string, len(hosts))
+	for i, host := range hosts {
+		b, err := self.Resolve(host)
+		if err != nil {
+			return nil, err
 		}
 
-		wg.Add(1)
-		go func(res *resultData, r *dataT, ok bool) {
-			defer wg.Done()
+		res[i] = b
+	}
+	return res, nil
+}
 
-			val, err := net.LookupIP(res.host)
-			if err != nil {
-				if ok {
-					res.Res = r.ips
-					res.Err = errors.NewErr(err)
-				} else {
-					res.Err = errors.NewErr(err)
-				}
-			}
+type ResolverServer struct {
+	Resolver *Resolver
+}
 
-			d := dataT{
-				ips: make([]net.IP, 0, len(val)),
-				end: now.Add(self.cacheTime),
-			}
-			for _, v := range val {
-				// if ip4 := v.To4(); len(ip4) == net.IPv4len {
-				d.ips = append(d.ips, v)
-				// }
-			}
-			self.mutex.Lock()
-			self.cache[res.host] = d
-			self.mutex.Unlock()
-
-			res.Res = d.ips
-		}(res, &r, ok)
-		return nil
-	})
+func (self *ResolverServer) Resolve(args *Args, result *[]string) error {
+	r, err := self.Resolver.Resolve(args.Host)
 	if err != nil {
 		return err
 	}
 
-	wg.Wait()
+	*result = r
+	return nil
+}
 
-	result := map[string]HostResult{}
-	for _, v := range results {
-		r := HostResult{}
-		if v.Err != nil {
-			r.Err = v.Err.Error()
-			if v.Res != nil {
-				log.Errorln(v.Err)
-			}
-		}
-
-		if v.Res != nil {
-			r.Status = "ok"
-			r.Ips = make([]string, 0, len(v.Res))
-			for _, v := range v.Res {
-				r.Ips = append(r.Ips, v.String())
-			}
-		} else {
-			r.Status = "error"
-		}
-		result[v.host] = r
+func (self *ResolverServer) ResolveAll(args *ArgsAll, result *[][]string) error {
+	r, err := self.Resolver.ResolveAll(args.Hosts)
+	if err != nil {
+		return err
 	}
-	return util.SendJson(w, result)
+
+	*result = r
+	return nil
 }

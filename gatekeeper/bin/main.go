@@ -2,31 +2,15 @@ package main
 
 import (
 	"flag"
-	"io/ioutil"
-	"net/http"
+	"net/rpc"
 	"psearch/gatekeeper"
-	"psearch/util"
 	"psearch/util/errors"
 	"psearch/util/graceful"
+	gjsonrpc "psearch/util/graceful/jsonrpc"
 	"psearch/util/log"
 	"strconv"
 	"time"
 )
-
-func getUrl(r *http.Request) (string, string, error) {
-	r.ParseForm()
-	u, err := util.GetParam(r, "url")
-	if err != nil {
-		return "", "", util.ClientError(err)
-	}
-
-	url, err := gatekeeper.UrlTransform(u)
-	if err != nil {
-		return "", "", util.ClientError(err)
-	}
-
-	return u, url, nil
-}
 
 func main() {
 	var help = flag.Bool("help", false, "print help")
@@ -47,73 +31,17 @@ func main() {
 		log.Fatal(err)
 	}
 
-	server := graceful.NewServer(http.Server{})
+	srv := rpc.NewServer()
+	srv.Register(&gatekeeper.GatekeeperServer{gk})
 
-	http.HandleFunc("/favicon.ico", graceful.CreateHandler(server, util.CreateErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
-		return nil
-	})))
-
-	http.HandleFunc("/find", graceful.CreateHandler(server, util.CreateErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
-		u, url, err := getUrl(r)
-		if err != nil {
-			return err
-		}
-
-		val, ok := gk.Find(url)
-		if ok {
-			log.Printf("Found URL: %s: %+v\n", u, val)
-		} else {
-			log.Printf("Not found URL: %s\n", u)
-		}
-		return util.SendJson(w, val)
-	})))
-
-	http.HandleFunc("/write", graceful.CreateHandler(server, util.CreateErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
-		u, url, err := getUrl(r)
-		if err != nil {
-			return err
-		}
-
-		data, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			return errors.NewErr(err)
-		}
-
-		val, err := gk.Write(u, url, data)
-		if err != nil {
-			return err
-		}
-
-		log.Printf("Wrote URL: %s: %+v; size: %v\n", u, val, gk.TrieSize())
-		return util.SendJson(w, val)
-	})))
-
-	http.HandleFunc("/read", graceful.CreateHandler(server, util.CreateErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
-		u, url, err := getUrl(r)
-		if err != nil {
-			return err
-		}
-
-		val, ok := gk.Find(url)
-		if !ok {
-			return util.ClientError(errors.New("Url " + u + " not found!"))
-		}
-
-		if err := gk.Read(url, val, w); err != nil {
-			return err
-		}
-
-		log.Printf("Read URL: %s: %+v\n", u, val)
-		return util.SendJson(w, val)
-	})))
-
-	server.SetSighup()
+	server := gjsonrpc.NewServer(srv)
+	graceful.SetSighup(server)
 
 	if err := server.ListenAndServe(":"+strconv.Itoa(*port), *gracefulRestart); err != nil {
 		log.Fatal(errors.NewErr(err))
 	}
 
-	if err := server.Restart(); err != nil {
+	if err := graceful.Restart(server); err != nil {
 		log.Fatal(err)
 	}
 }

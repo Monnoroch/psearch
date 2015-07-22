@@ -3,7 +3,10 @@ package util
 import (
 	"encoding/json"
 	"math/rand"
+	"net"
 	"net/http"
+	"net/rpc"
+	"net/rpc/jsonrpc"
 	"psearch/util/errors"
 	"psearch/util/iter"
 	"psearch/util/log"
@@ -112,4 +115,13 @@ func DoIterTsvRequest(url string, it iter.Iterator) (*http.Response, error) {
 	}
 
 	return resp, nil
+}
+
+func JsonRpcDial(addr string) (*rpc.Client, error) {
+	conn, err := net.Dial("tcp", addr)
+	if err != nil {
+		return nil, errors.NewErr(err)
+	}
+
+	return jsonrpc.NewClient(conn), nil
 }

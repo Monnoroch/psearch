@@ -1,41 +1,44 @@
 package dns
 
 import (
-	"encoding/json"
+	"net/rpc"
 	"psearch/util"
 	"psearch/util/errors"
-	"psearch/util/iter"
 )
 
-type HostResult struct {
-	Status string   "json:`status`"
-	Err    string   "json:`err`"
-	Ips    []string "json:`ips`"
+type Args struct {
+	Host string `json:"host"`
 }
 
-type ResolverApi struct {
-	prefix string
+type ArgsAll struct {
+	Hosts []string `json:"hosts"`
 }
 
-func (self *ResolverApi) ApiUrl() string {
-	return "/res"
+type ResolverClient struct {
+	*rpc.Client
 }
 
-func NewResolverApi(addr string) *ResolverApi {
-	return &ResolverApi{
-		prefix: "http://" + addr + (&ResolverApi{}).ApiUrl(),
-	}
-}
-
-func (self *ResolverApi) ResolveAll(hosts iter.Iterator) (map[string]HostResult, error) {
-	resp, err := util.DoIterTsvRequest(self.prefix, hosts)
+func NewResolverClient(addr string) (ResolverClient, error) {
+	c, err := util.JsonRpcDial(addr)
 	if err != nil {
+		return ResolverClient{}, errors.NewErr(err)
+	}
+
+	return ResolverClient{c}, nil
+}
+
+func (self *ResolverClient) Resolve(host string) ([]string, error) {
+	var res []string
+	if err := self.Call("ResolverServer.Resolve", Args{Host: host}, &res); err != nil {
 		return nil, errors.NewErr(err)
 	}
-	defer resp.Body.Close()
 
-	var res map[string]HostResult
-	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+	return res, nil
+}
+
+func (self *ResolverClient) ResolveAll(hosts []string) ([][]string, error) {
+	var res [][]string
+	if err := self.Call("ResolverServer.ResolveAll", ArgsAll{Hosts: hosts}, &res); err != nil {
 		return nil, errors.NewErr(err)
 	}
 

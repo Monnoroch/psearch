@@ -2,15 +2,13 @@ package main
 
 import (
 	"flag"
-	"net/http"
+	"net/rpc"
 	"psearch/crawler/caregiver"
-	"psearch/util"
 	"psearch/util/errors"
 	"psearch/util/graceful"
-	"psearch/util/iter"
+	gjsonrpc "psearch/util/graceful/jsonrpc"
 	"psearch/util/log"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -31,7 +29,7 @@ func main() {
 		return
 	}
 
-	ct := caregiver.NewCaregiver(
+	ct, err := caregiver.NewCaregiver(
 		*dlerArrd,
 		*dnsAddr,
 		uint(*defaultMaxCount),
@@ -39,34 +37,15 @@ func main() {
 		time.Duration(*pullTimeout)*time.Millisecond,
 		time.Duration(*workTimeout)*time.Millisecond,
 	)
-	server := graceful.NewServer(http.Server{})
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	http.HandleFunc("/favicon.ico", graceful.CreateHandler(server, util.CreateErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
-		return nil
-	})))
+	srv := rpc.NewServer()
+	srv.Register(&caregiver.CaregiverServer{ct})
 
-	http.HandleFunc((&caregiver.CaregiverApi{}).PushUrl(), graceful.CreateHandler(server, util.CreateErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
-		r.ParseForm()
-		urls := util.GetParams(r, "url")
-		log.Println("Push urls", urls)
-		if err := ct.PushUrls(iter.Chain(iter.Array(urls), iter.Delim(r.Body, '\t'))); err != nil {
-			return err
-		}
-
-		log.Println("Pushed URLs: " + strings.Join(urls, ", "))
-		return nil
-	})))
-
-	http.HandleFunc((&caregiver.CaregiverApi{}).PullUrl(), graceful.CreateHandler(server, util.CreateErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
-		if err := ct.PullUrls(w); err != nil {
-			return err
-		}
-
-		log.Println("Pulled URLs!")
-		return nil
-	})))
-
-	server.SetSighup()
+	server := gjsonrpc.NewServer(srv)
+	graceful.SetSighup(server)
 
 	go func() {
 		for {
@@ -83,7 +62,7 @@ func main() {
 		log.Fatal(errors.NewErr(err))
 	}
 
-	if err := server.Restart(); err != nil {
+	if err := graceful.Restart(server); err != nil {
 		log.Fatal(err)
 	}
 }

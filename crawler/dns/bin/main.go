@@ -2,15 +2,13 @@ package main
 
 import (
 	"flag"
-	"net/http"
+	"net/rpc"
 	"psearch/crawler/dns"
-	"psearch/util"
 	"psearch/util/errors"
 	"psearch/util/graceful"
-	"psearch/util/iter"
+	gjsonrpc "psearch/util/graceful/jsonrpc"
 	"psearch/util/log"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -26,32 +24,18 @@ func main() {
 		return
 	}
 
-	resolver := dns.NewResolver(time.Duration(*cacheTime) * time.Second)
+	srv := rpc.NewServer()
+	srv.Register(&dns.ResolverServer{dns.NewResolver(time.Duration(*cacheTime) * time.Second)})
+	log.Println(srv)
 
-	server := graceful.NewServer(http.Server{})
-
-	http.HandleFunc("/favicon.ico", graceful.CreateHandler(server, util.CreateErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
-		return nil
-	})))
-
-	http.HandleFunc((&dns.ResolverApi{}).ApiUrl(), graceful.CreateHandler(server, util.CreateErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
-		r.ParseForm()
-		hosts := util.GetParams(r, "host")
-		if err := resolver.ResolveAll(w, iter.Chain(iter.Array(hosts), iter.Delim(r.Body, '\t'))); err != nil {
-			return err
-		}
-
-		log.Println("Resolved hosts: " + strings.Join(hosts, ", "))
-		return nil
-	})))
-
-	server.SetSighup()
+	server := gjsonrpc.NewServer(srv)
+	graceful.SetSighup(server)
 
 	if err := server.ListenAndServe(":"+strconv.Itoa(*port), *gracefulRestart); err != nil {
 		log.Fatal(errors.NewErr(err))
 	}
 
-	if err := server.Restart(); err != nil {
+	if err := graceful.Restart(server); err != nil {
 		log.Fatal(err)
 	}
 }

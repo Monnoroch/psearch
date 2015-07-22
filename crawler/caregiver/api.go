@@ -1,66 +1,38 @@
 package caregiver
 
 import (
-	"net/http"
+	"net/rpc"
 	"psearch/util"
 	"psearch/util/errors"
-	"psearch/util/iter"
 )
 
-type CaregiverApi struct {
-	Addr    string
-	stopped bool
+type Args struct {
+	Urls []string `json:"urls"`
 }
 
-func (self *CaregiverApi) PushUrl() string {
-	return "/push"
+type CaregiverClient struct {
+	*rpc.Client
 }
 
-func (self *CaregiverApi) PullUrl() string {
-	return "/pull"
-}
-
-func (self *CaregiverApi) PushUrls(urls iter.Iterator) (*http.Response, error) {
-	resp, err := util.DoIterTsvRequest("http://"+self.Addr+self.PushUrl(), urls)
+func NewCaregiverClient(addr string) (CaregiverClient, error) {
+	c, err := util.JsonRpcDial(addr)
 	if err != nil {
+		return CaregiverClient{}, errors.NewErr(err)
+	}
+
+	return CaregiverClient{c}, nil
+}
+
+func (self *CaregiverClient) PushUrls(urls []string) error {
+	var res struct{}
+	return errors.NewErr(self.Call("CaregiverServer.PushUrls", Args{Urls: urls}, &res))
+}
+
+func (self *CaregiverClient) PullUrls() (map[string]string, error) {
+	var res map[string]string
+	if err := self.Call("CaregiverServer.PushUrls", struct{}{}, &res); err != nil {
 		return nil, errors.NewErr(err)
 	}
 
-	return resp, nil
-}
-
-type Response struct {
-	Resp *http.Response
-	Err  error
-}
-
-func (self *CaregiverApi) PullUrls(res chan Response) {
-	self.stopped = false
-	client := &http.Client{}
-	url := "http://" + self.Addr + self.PullUrl()
-	for {
-		// this as almost correct, but we don't mind making one more request, very rarely
-		if self.stopped {
-			break
-		}
-
-		req, err := http.NewRequest("GET", url, nil)
-		if err != nil {
-			res <- Response{
-				Resp: nil,
-				Err:  errors.NewErr(err),
-			}
-			continue
-		}
-
-		resp, err := client.Do(req)
-		res <- Response{
-			Resp: resp,
-			Err:  errors.NewErr(err),
-		}
-	}
-}
-
-func (self *CaregiverApi) Stop() {
-	self.stopped = true
+	return res, nil
 }

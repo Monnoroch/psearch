@@ -1,13 +1,10 @@
 package caregiver
 
 import (
-	"net/http"
 	"net/url"
 	"psearch/crawler/dns"
 	"psearch/crawler/downloader"
-	"psearch/util"
 	"psearch/util/errors"
-	"psearch/util/iter"
 	"psearch/util/log"
 	"strings"
 	"sync"
@@ -23,8 +20,8 @@ type hostData struct {
 }
 
 type Caregiver struct {
-	downloader      downloader.DownloaderApi
-	dns             *dns.ResolverApi
+	downloader      downloader.DownloaderClient
+	dns             *dns.ResolverClient
 	hosts           map[string]*hostData
 	mutex           sync.Mutex
 	defaultTimeout  time.Duration
@@ -35,11 +32,14 @@ type Caregiver struct {
 	WorkTimeout     time.Duration
 }
 
-func NewCaregiver(dlAddr, dnsAddr string, defaultMaxCount uint, defaultTimeout, pullTimeout, workTimeout time.Duration) *Caregiver {
+func NewCaregiver(dlAddr, dnsAddr string, defaultMaxCount uint, defaultTimeout, pullTimeout, workTimeout time.Duration) (*Caregiver, error) {
+	dlc, err := downloader.NewDownloaderClient(dlAddr)
+	if err != nil {
+		return nil, err
+	}
+
 	res := &Caregiver{
-		downloader: downloader.DownloaderApi{
-			Addr: dlAddr,
-		},
+		downloader:      dlc,
 		hosts:           map[string]*hostData{},
 		defaultTimeout:  defaultTimeout,
 		defaultMaxCount: defaultMaxCount,
@@ -48,14 +48,19 @@ func NewCaregiver(dlAddr, dnsAddr string, defaultMaxCount uint, defaultTimeout, 
 		WorkTimeout:     workTimeout,
 	}
 	if dnsAddr != "" {
-		res.dns = dns.NewResolverApi(dnsAddr)
+		dnc, err := dns.NewResolverClient(dnsAddr)
+		if err != nil {
+			return nil, err
+		}
+
+		res.dns = &dnc
 	}
-	return res
+	return res, nil
 }
 
-func (self *Caregiver) PushUrls(urls iter.Iterator) error {
+func (self *Caregiver) PushUrls(urls []string) error {
 	data := map[string][]string{}
-	err := iter.Do(urls, func(u string) error {
+	for _, u := range urls {
 		url, err := url.Parse(u)
 		if err != nil {
 			return errors.NewErr(err)
@@ -71,9 +76,6 @@ func (self *Caregiver) PushUrls(urls iter.Iterator) error {
 		}
 		data[url.Host] = append(data[url.Host], path)
 		return nil
-	})
-	if err != nil {
-		return err
 	}
 
 	for host, urls := range data {
@@ -89,7 +91,7 @@ func (self *Caregiver) PushUrls(urls iter.Iterator) error {
 	return nil
 }
 
-func (self *Caregiver) PullUrls(w http.ResponseWriter) error {
+func (self *Caregiver) PullUrls() map[string]string {
 	for {
 		self.dataMutex.RLock()
 		sleep := len(self.data) == 0
@@ -102,7 +104,7 @@ func (self *Caregiver) PullUrls(w http.ResponseWriter) error {
 
 	self.dataMutex.Lock()
 	defer self.dataMutex.Unlock()
-	res := util.SendJson(w, self.data)
+	res := self.data
 	self.data = map[string]string{}
 	return res
 }
@@ -131,18 +133,17 @@ func (self *Caregiver) Start() error {
 		}
 
 		var err error
-		ips := map[string]dns.HostResult{}
+		ips := map[string][]string{}
 
-		if self.dns != nil {
-			ips, err = self.dns.ResolveAll(iter.Array(hosts))
-			if err != nil {
-				return err
-			}
-		}
+		// if self.dns != nil {
+		// 	ips, err = self.dns.ResolveAll(iter.Array(hosts))
+		// 	if err != nil {
+		// 		return err
+		// 	}
+		// }
 
 		now = time.Now()
 		// можно качать!
-		// TODO: iter.Generator!
 		urls := []string{}
 		for k, v := range data {
 			/*
@@ -151,8 +152,8 @@ func (self *Caregiver) Start() error {
 			*/
 
 			ip := k
-			if v, ok := ips[k]; ok && len(v.Ips) != 0 {
-				ip = v.Ips[0]
+			if v, ok := ips[k]; ok && len(v) != 0 {
+				ip = v[0]
 				if strings.Contains(ip, ":") {
 					ip = "[" + ip + "]:80"
 				}
@@ -165,7 +166,7 @@ func (self *Caregiver) Start() error {
 			urls = append(urls, us...)
 		}
 
-		docs, err := self.downloader.DownloadAll(iter.Array(urls))
+		docs, err := self.downloader.DownloadAll(urls)
 		if err != nil {
 			return err
 		}
@@ -175,13 +176,13 @@ func (self *Caregiver) Start() error {
 			v.end = now.Add(v.timeout)
 		}
 
-		for k, v := range docs {
-			if v.Status == "ok" {
+		for i, v := range docs {
+			if v != "" {
 				self.dataMutex.Lock()
-				self.data[k] = v.Res
+				self.data[urls[i]] = v
 				self.dataMutex.Unlock()
 			} else {
-				log.Errorln("Couldn't download url "+k+",", v)
+				log.Errorln("Couldn't download url "+urls[i]+",", v)
 			}
 		}
 	}
@@ -193,4 +194,17 @@ func (self *Caregiver) getData(host string) *hostData {
 		timeout:  self.defaultTimeout,
 		maxCount: self.defaultMaxCount,
 	}
+}
+
+type CaregiverServer struct {
+	Caregiver *Caregiver
+}
+
+func (self *CaregiverServer) PushUrls(args *Args, result *struct{}) error {
+	return self.Caregiver.PushUrls(args.Urls)
+}
+
+func (self *CaregiverServer) PullUrls(args *struct{}, result *map[string]string) error {
+	*result = self.Caregiver.PullUrls()
+	return nil
 }

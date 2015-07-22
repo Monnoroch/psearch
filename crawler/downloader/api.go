@@ -1,34 +1,44 @@
 package downloader
 
 import (
-	"encoding/json"
+	"net/rpc"
 	"psearch/util"
 	"psearch/util/errors"
-	"psearch/util/iter"
 )
 
-type DownloadResult struct {
-	Status string "json:`status`"
-	Res    string "json:`res`"
+type Args struct {
+	Url string `json:"url"`
 }
 
-type DownloaderApi struct {
-	Addr string
+type ArgsAll struct {
+	Urls []string `json:"urls"`
 }
 
-func (self *DownloaderApi) ApiUrl() string {
-	return "/dl"
+type DownloaderClient struct {
+	*rpc.Client
 }
 
-func (self *DownloaderApi) DownloadAll(urls iter.Iterator) (map[string]DownloadResult, error) {
-	resp, err := util.DoIterTsvRequest("http://"+self.Addr+self.ApiUrl(), urls)
+func NewDownloaderClient(addr string) (DownloaderClient, error) {
+	c, err := util.JsonRpcDial(addr)
 	if err != nil {
-		return nil, errors.NewErr(err)
+		return DownloaderClient{}, errors.NewErr(err)
 	}
-	defer resp.Body.Close()
 
-	var res map[string]DownloadResult
-	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+	return DownloaderClient{c}, nil
+}
+
+func (self *DownloaderClient) Download(url string) (string, error) {
+	var res string
+	if err := self.Call("DownloaderServer.Download", Args{Url: url}, &res); err != nil {
+		return "", errors.NewErr(err)
+	}
+
+	return string(res), nil
+}
+
+func (self *DownloaderClient) DownloadAll(urls []string) ([]string, error) {
+	var res []string
+	if err := self.Call("DownloaderServer.DownloadAll", ArgsAll{Urls: urls}, &res); err != nil {
 		return nil, errors.NewErr(err)
 	}
 

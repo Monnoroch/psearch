@@ -1,43 +1,76 @@
 package gatekeeper
 
 import (
-	"io"
-	"net/http"
+	"net/rpc"
+	"psearch/gatekeeper/trie"
+	"psearch/util"
 	"psearch/util/errors"
 )
 
-type GatekeeperApi struct {
-	Addr string
+type FindArgs struct {
+	Url string `json:"url"`
 }
 
-func (self *GatekeeperApi) FindUrl() string {
-	return "/find"
+type FindResult struct {
+	Val *trie.Value `json:"val,omitempty"`
 }
 
-func (self *GatekeeperApi) ReadUrl() string {
-	return "/read"
+type ReadResult struct {
+	FindResult
+	Body *string `json:"body,omitempty"`
 }
 
-func (self *GatekeeperApi) WriteUrl() string {
-	return "/write"
+type WriteArgs struct {
+	FindArgs
+	Body string `json:"body"`
 }
 
-func (self *GatekeeperApi) Find(url string) (*http.Response, error) {
-	resp, err := http.Get("http://" + self.Addr + self.FindUrl() + "?url=" + url)
-	return resp, errors.NewErr(err)
+type WriteResult struct {
+	Val trie.Value `json:"val"`
 }
 
-func (self *GatekeeperApi) Read(url string) (*http.Response, error) {
-	resp, err := http.Get("http://" + self.Addr + self.ReadUrl() + "?url=" + url)
-	return resp, errors.NewErr(err)
+type GatekeeperClient struct {
+	*rpc.Client
 }
 
-func (self *GatekeeperApi) Write(url string, r io.Reader) (*http.Response, error) {
-	req, err := http.NewRequest("GET", "http://"+self.Addr+self.WriteUrl()+"?url="+url, r)
+func NewGatekeeperClient(addr string) (GatekeeperClient, error) {
+	c, err := util.JsonRpcDial(addr)
 	if err != nil {
-		return nil, errors.NewErr(err)
+		return GatekeeperClient{}, errors.NewErr(err)
 	}
 
-	resp, err := (&http.Client{}).Do(req)
-	return resp, errors.NewErr(err)
+	return GatekeeperClient{c}, nil
+}
+
+func (self *GatekeeperClient) Find(url string) (trie.Value, bool, error) {
+	var res FindResult
+	if err := self.Call("GatekeeperServer.Find", FindArgs{Url: url}, &res); err != nil {
+		return trie.Value{}, false, errors.NewErr(err)
+	}
+
+	if res.Val == nil {
+		return trie.Value{}, false, nil
+	}
+	return *res.Val, true, nil
+}
+
+func (self *GatekeeperClient) Read(url string) (trie.Value, bool, string, error) {
+	var res ReadResult
+	if err := self.Call("GatekeeperServer.Read", FindArgs{Url: url}, &res); err != nil {
+		return trie.Value{}, false, "", errors.NewErr(err)
+	}
+
+	if res.Val == nil {
+		return trie.Value{}, false, "", nil
+	}
+	return *res.Val, true, *res.Body, nil
+}
+
+func (self *GatekeeperClient) Write(url string, body string) (trie.Value, error) {
+	var res WriteResult
+	if err := self.Call("GatekeeperServer.Write", WriteArgs{FindArgs{Url: url}, body}, &res); err != nil {
+		return trie.Value{}, errors.NewErr(err)
+	}
+
+	return res.Val, nil
 }
