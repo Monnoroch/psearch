@@ -143,7 +143,7 @@ func (self *Caregiver) Start() error {
 		// TODO: iter.Generator!
 		urls := []string{}
 		for k, v := range data {
-			host := "http://" + k + "/"
+			host := "http://" + ips[k].Ips[0] + "/"
 			us := v.urls.DequeueN(v.maxCount)
 			for i := 0; i < len(us); i += 1 {
 				us[i] = host + us[i]
