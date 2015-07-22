@@ -67,14 +67,19 @@ func (self *Resolver) ResolveAll(w http.ResponseWriter, hosts iter.Iterator) err
 			}
 
 			d := dataT{
-				ips: val,
+				ips: make([]net.IP, 0, len(val)),
 				end: now.Add(self.cacheTime),
+			}
+			for _, v := range val {
+				// if ip4 := v.To4(); len(ip4) == net.IPv4len {
+				d.ips = append(d.ips, v)
+				// }
 			}
 			self.mutex.Lock()
 			self.cache[res.host] = d
 			self.mutex.Unlock()
 
-			res.Res = val
+			res.Res = d.ips
 		}(res, &r, ok)
 		return nil
 	})

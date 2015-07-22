@@ -21,8 +21,8 @@ func (self *ResolverApi) ApiUrl() string {
 	return "/res"
 }
 
-func NewResolverApi(addr string) ResolverApi {
-	return ResolverApi{
+func NewResolverApi(addr string) *ResolverApi {
+	return &ResolverApi{
 		prefix: "http://" + addr + (&ResolverApi{}).ApiUrl(),
 	}
 }
