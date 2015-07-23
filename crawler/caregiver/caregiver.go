@@ -186,7 +186,6 @@ func (self *Caregiver) Start() error {
 			}
 		}
 	}
-	return nil
 }
 
 func (self *Caregiver) getData(host string) *hostData {

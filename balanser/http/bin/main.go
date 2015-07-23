@@ -17,7 +17,7 @@ import (
 type Urls []string
 
 func (self *Urls) String() string {
-	return fmt.Sprintf("%d", *self)
+	return fmt.Sprintf("%v", *self)
 }
 
 func (self *Urls) Set(value string) error {
