@@ -1,4 +1,4 @@
-package balanser
+package http
 
 import (
 	"io"
@@ -32,10 +32,10 @@ func (self *Balanser) Request(w http.ResponseWriter, r *http.Request) ([]error, 
 	failed := map[string]struct{}{}
 	for {
 		if len(failed) == self.count {
-			return resErrors, errors.New("All backends broken!")
+			return resErrors, errors.New("All backends are broken!")
 		}
 
-		backend, err := self.router.Choose(r)
+		backend, err := self.router.Choose()
 		if err != nil {
 			return resErrors, err
 		}
@@ -68,14 +68,4 @@ func (self *Balanser) Request(w http.ResponseWriter, r *http.Request) ([]error, 
 		_, err = io.Copy(w, resp.Body)
 		return resErrors, errors.NewErr(err)
 	}
-}
-
-func NewChooser(name string, backends []string) (chooser.BackendChooser, error) {
-	if name == "random" {
-		return chooser.NewRandomChooser(backends), nil
-	}
-	if name == "roundrobin" {
-		return chooser.NewRoundRobinChooser(backends), nil
-	}
-	return nil, errors.New("Unknown name: \"" + name + "\".")
 }

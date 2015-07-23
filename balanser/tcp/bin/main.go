@@ -3,11 +3,14 @@ package main
 import (
 	"flag"
 	"fmt"
-	"net/http"
+	"net/rpc"
 	"psearch/balanser"
-	"psearch/util"
+	btcp "psearch/balanser/tcp"
+	// "psearch/util"
+	"io"
 	"psearch/util/errors"
 	"psearch/util/graceful"
+	grpc "psearch/util/graceful/rpc"
 	"psearch/util/log"
 	"strconv"
 )
@@ -43,29 +46,25 @@ func main() {
 		return
 	}
 
-	balanser := balanser.NewBalanser(router, urls)
-	server := graceful.NewServer(http.Server{})
+	balanser, err := btcp.NewBalanser(router, urls)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer balanser.Close()
 
-	// NOTE: for testing only, so browser wouldn't spam.
-	http.HandleFunc("/favicon.ico", graceful.CreateHandler(server, util.CreateErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
-		return nil
-	})))
-
-	http.HandleFunc("/", graceful.CreateHandler(server, util.CreateErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
-		errs, err := balanser.Request(w, r)
-		for _, e := range errs {
-			log.Println(e)
+	server := grpc.NewServer(rpc.NewServer(), func(srv *rpc.Server, conn io.ReadWriteCloser) {
+		if err := balanser.Request(conn); err != nil {
+			log.Errorln(err)
 		}
-		return err
-	})))
+	})
 
-	server.SetSighup()
+	graceful.SetSighup(server)
 
 	if err := server.ListenAndServe(":"+strconv.Itoa(*port), *gracefulRestart); err != nil {
 		log.Fatal(errors.NewErr(err))
 	}
 
-	if err := server.Restart(); err != nil {
+	if err := graceful.Restart(server); err != nil {
 		log.Fatal(err)
 	}
 }
