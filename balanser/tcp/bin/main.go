@@ -8,6 +8,7 @@ import (
 	btcp "psearch/balanser/tcp"
 	// "psearch/util"
 	"io"
+	"net"
 	"psearch/util/errors"
 	"psearch/util/graceful"
 	grpc "psearch/util/graceful/rpc"
@@ -46,14 +47,9 @@ func main() {
 		return
 	}
 
-	balanser, err := btcp.NewBalanser(router, urls)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer balanser.Close()
-
+	balanser := btcp.NewBalanser(router, urls)
 	server := grpc.NewServer(rpc.NewServer(), func(srv *rpc.Server, conn io.ReadWriteCloser) {
-		if err := balanser.Request(conn); err != nil {
+		if err := balanser.Request(conn.(*net.TCPConn)); err != nil {
 			log.Errorln(err)
 		}
 	})

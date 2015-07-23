@@ -5,46 +5,23 @@ import (
 	"net"
 	"psearch/balanser/chooser"
 	"psearch/util/errors"
-	"psearch/util/log"
 )
 
 type Balanser struct {
-	count    int
-	router   chooser.BackendChooser
-	backends map[string]net.Conn
+	count  int
+	router chooser.BackendChooser
 }
 
-func NewBalanser(rout chooser.BackendChooser, urls []string) (*Balanser, error) {
-	backends := map[string]net.Conn{}
-	any := false
-	for _, url := range urls {
-		conn, err := net.Dial("tcp", url)
-		if err != nil {
-			log.Errorln(err)
-		}
-		any = true
-		backends[url] = conn
-	}
-	if !any {
-		return nil, errors.New("All backends are broken!")
-	}
-
+func NewBalanser(rout chooser.BackendChooser, urls []string) *Balanser {
 	return &Balanser{
-		count:    len(urls),
-		router:   rout,
-		backends: backends,
-	}, nil
-}
-
-func (self *Balanser) Close() error {
-	var err error
-	for _, v := range self.backends {
-		err = v.Close()
+		count:  len(urls),
+		router: rout,
 	}
-	return err
 }
 
-func (self *Balanser) Request(conn io.ReadWriteCloser) error {
+func (self *Balanser) Request(client *net.TCPConn) error {
+	defer client.Close()
+
 	failed := map[string]struct{}{}
 	for {
 		if len(failed) == self.count {
@@ -60,16 +37,33 @@ func (self *Balanser) Request(conn io.ReadWriteCloser) error {
 			continue
 		}
 
-		client, ok := self.backends[backend]
-		if !ok || client == nil {
+		conn, err := net.Dial("tcp", backend)
+		if err != nil {
 			failed[backend] = struct{}{}
 			continue
 		}
 
-		if _, err := io.Copy(client, conn); err != nil {
-			return errors.NewErr(err)
+		server := conn.(*net.TCPConn)
+
+		clientClosed := make(chan error, 1)
+		go func() {
+			_, err := io.Copy(server, client)
+			clientClosed <- errors.NewErr(err)
+		}()
+
+		serverClosed := make(chan error, 1)
+		go func() {
+			_, err := io.Copy(client, server)
+			serverClosed <- errors.NewErr(err)
+		}()
+
+		select {
+		case err = <-clientClosed:
+			server.SetLinger(0)
+			server.CloseRead()
+		case err = <-serverClosed:
 		}
 
-		return nil
+		return err
 	}
 }
