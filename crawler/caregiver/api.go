@@ -30,7 +30,7 @@ func (self *CaregiverClient) PushUrls(urls []string) error {
 
 func (self *CaregiverClient) PullUrls() (map[string]string, error) {
 	var res map[string]string
-	if err := self.Call("CaregiverServer.PushUrls", struct{}{}, &res); err != nil {
+	if err := self.Call("CaregiverServer.PullUrls", struct{}{}, &res); err != nil {
 		return nil, errors.NewErr(err)
 	}
 

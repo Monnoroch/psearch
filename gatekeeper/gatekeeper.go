@@ -9,6 +9,7 @@ import (
 	"psearch/gatekeeper/trie"
 	"psearch/util"
 	"psearch/util/errors"
+	"psearch/util/log"
 	"sort"
 	"strconv"
 	"strings"
@@ -129,6 +130,7 @@ func NewGatekeeper(dir string, maxFileSize uint64, maxTime time.Duration) (*Gate
 }
 
 func (self *Gatekeeper) load(name string, num uint, counts map[uint]uint) error {
+	log.Printf("Gatekeeper.load(%v, %v)\n", name, num)
 	file, err := util.Open(name)
 	if err != nil {
 		return err
@@ -194,6 +196,8 @@ func (self *Gatekeeper) nextFile() error {
 }
 
 func (self *Gatekeeper) Write(url, key string, data []byte) (trie.Value, error) {
+	log.Printf("Gatekeeper.Write(%v, %v)\n", url, key)
+
 	if self.file.file == nil {
 		f, err := os.Create(self.dir + "/" + strconv.Itoa(int(self.fNum)))
 		if err != nil {
@@ -244,10 +248,12 @@ func (self *Gatekeeper) Write(url, key string, data []byte) (trie.Value, error) 
 	// TODO: remove
 	self.file.file.Sync()
 
+	log.Printf("Gatekeeper.Write(%v, %v) OK (%+v)\n", url, key, res)
 	return res, nil
 }
 
 func (self *Gatekeeper) Read(val trie.Value) (string, error) {
+	log.Printf("Gatekeeper.Read(%+v)\n", val)
 	f, err := util.Open(self.dir + "/" + strconv.Itoa(int(val.FNum)))
 	if err != nil {
 		return "", err
@@ -266,11 +272,15 @@ func (self *Gatekeeper) Read(val trie.Value) (string, error) {
 		return "", err
 	}
 
+	log.Printf("Gatekeeper.Read(%+v) OK\n", val)
 	return string(res), nil
 }
 
 func (self *Gatekeeper) Find(key string) (trie.Value, bool) {
-	return self.trie.Find([]byte(key))
+	log.Printf("Gatekeeper.Find(%+v)\n", key)
+	res, ok := self.trie.Find([]byte(key))
+	log.Printf("Gatekeeper.Find(%+v) OK (%v, %v)\n", key, res, ok)
+	return res, ok
 }
 
 func (self *Gatekeeper) TrieSize() int {
@@ -284,6 +294,7 @@ type GatekeeperServer struct {
 func (self *GatekeeperServer) Find(args *FindArgs, result *FindResult) error {
 	key, err := UrlTransform(args.Url)
 	if err != nil {
+		log.Errorln(err, args)
 		return err
 	}
 
@@ -298,6 +309,7 @@ func (self *GatekeeperServer) Find(args *FindArgs, result *FindResult) error {
 func (self *GatekeeperServer) Read(args *FindArgs, result *ReadResult) error {
 	key, err := UrlTransform(args.Url)
 	if err != nil {
+		log.Errorln(err, args)
 		return err
 	}
 
@@ -308,6 +320,7 @@ func (self *GatekeeperServer) Read(args *FindArgs, result *ReadResult) error {
 
 	data, err := self.Gatekeeper.Read(r)
 	if err != nil {
+		log.Errorln(err, args)
 		return err
 	}
 
@@ -318,11 +331,13 @@ func (self *GatekeeperServer) Read(args *FindArgs, result *ReadResult) error {
 func (self *GatekeeperServer) Write(args *WriteArgs, result *FindResult) error {
 	key, err := UrlTransform(args.Url)
 	if err != nil {
+		log.Errorln(err, args)
 		return err
 	}
 
 	r, err := self.Gatekeeper.Write(args.Url, key, []byte(args.Body))
 	if err != nil {
+		log.Errorln(err, args)
 		return err
 	}
 

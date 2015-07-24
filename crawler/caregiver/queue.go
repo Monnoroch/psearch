@@ -19,34 +19,44 @@ func (self *Queue) Len() uint {
 }
 
 func (self *Queue) Enqueue(val string) {
-	total := len(self.array) + 1
-	if cap(self.array) < total {
-		self.realloc(1)
-	}
-	self.array = self.array[:total]
-	self.array[total-1] = val
+	self.array = append(self.array, val)
+	// total := len(self.array) + 1
+	// if cap(self.array) < total {
+	// 	self.realloc(1)
+	// }
+	// self.array = self.array[:total]
+	// self.array[total-1] = val
 }
 
 func (self *Queue) EnqueueAll(vals ...string) {
-	n := len(vals)
-	lastLen := self.Len()
-	total := len(self.array) + n
-	if cap(self.array) < total {
-		self.realloc(uint(n))
+	for _, v := range vals {
+		self.Enqueue(v)
 	}
-	self.array = self.array[:self.Len()+uint(n)]
-	copy(self.array[lastLen:], vals)
+	// n := len(vals)
+	// lastLen := self.Len()
+	// total := len(self.array) + n
+	// if cap(self.array) < total {
+	// 	self.realloc(uint(n))
+	// }
+	// self.array = self.array[:self.Len()+uint(n)]
+	// copy(self.array[lastLen:], vals)
 }
 
-func (self *Queue) Dequeue() string {
+func (self *Queue) TryDequeue() (string, bool) {
+	if self.Len() == 0 {
+		return "", false
+	}
 	self.start += 1
-	return self.array[self.start-1]
+	return self.array[self.start-1], true
 }
 
 func (self *Queue) DequeueN(n uint) []string {
 	minLen := self.Len()
 	if n < minLen {
 		minLen = n
+	}
+	if minLen == 0 {
+		return nil
 	}
 
 	res := make([]string, minLen)
@@ -93,10 +103,10 @@ func (self *LockedQueue) EnqueueAll(vals ...string) {
 	self.queue.EnqueueAll(vals...)
 }
 
-func (self *LockedQueue) Dequeue() string {
+func (self *LockedQueue) TryDequeue() (string, bool) {
 	self.mutex.Lock()
 	defer self.mutex.Unlock()
-	return self.queue.Dequeue()
+	return self.queue.TryDequeue()
 }
 
 func (self *LockedQueue) DequeueN(n uint) []string {

@@ -34,6 +34,7 @@ func (self *Resolver) load(data *dataT, res *[]string) {
 }
 
 func (self *Resolver) Resolve(host string) ([]string, error) {
+	log.Printf("Resolver.Resolve(%s)\n", host)
 	self.mutex.RLock()
 	r, hacheHit := self.cache[host]
 	self.mutex.RUnlock()
@@ -41,6 +42,7 @@ func (self *Resolver) Resolve(host string) ([]string, error) {
 	var res []string
 	if hacheHit && time.Now().Before(r.end) {
 		self.load(&r, &res)
+		log.Printf("Resolver.Resolve(%s) OK (cache)!\n", host)
 		return res, nil
 	}
 
@@ -50,6 +52,7 @@ func (self *Resolver) Resolve(host string) ([]string, error) {
 		if hacheHit {
 			self.load(&r, &res)
 			log.Errorln(err)
+			log.Printf("Resolver.Resolve(%s) OK (cache, but error)!\n", host)
 			return res, nil
 		}
 		return nil, err
@@ -70,10 +73,12 @@ func (self *Resolver) Resolve(host string) ([]string, error) {
 	self.mutex.Unlock()
 
 	self.load(&d, &res)
+	log.Printf("Resolver.Resolve(%s) OK!\n", host)
 	return res, nil
 }
 
 func (self *Resolver) ResolveAll(hosts []string) ([][]string, error) {
+	log.Printf("Resolver.ResolveAll(%#v)\n", hosts)
 	res := make([][]string, len(hosts))
 	for i, host := range hosts {
 		b, err := self.Resolve(host)
@@ -83,6 +88,7 @@ func (self *Resolver) ResolveAll(hosts []string) ([][]string, error) {
 
 		res[i] = b
 	}
+	log.Printf("Resolver.ResolveAll(%#v) OK\n", hosts)
 	return res, nil
 }
 
@@ -93,6 +99,7 @@ type ResolverServer struct {
 func (self *ResolverServer) Resolve(args *Args, result *[]string) error {
 	r, err := self.Resolver.Resolve(args.Host)
 	if err != nil {
+		log.Errorln(err, args)
 		return err
 	}
 
@@ -103,6 +110,7 @@ func (self *ResolverServer) Resolve(args *Args, result *[]string) error {
 func (self *ResolverServer) ResolveAll(args *ArgsAll, result *[][]string) error {
 	r, err := self.Resolver.ResolveAll(args.Hosts)
 	if err != nil {
+		log.Errorln(err, args)
 		return err
 	}
 

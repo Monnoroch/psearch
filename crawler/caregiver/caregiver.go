@@ -59,6 +59,7 @@ func NewCaregiver(dlAddr, dnsAddr string, defaultMaxCount uint, defaultTimeout, 
 }
 
 func (self *Caregiver) PushUrls(urls []string) error {
+	log.Printf("Caregiver.PushUrls(%#v)\n", urls)
 	data := map[string][]string{}
 	for _, u := range urls {
 		url, err := url.Parse(u)
@@ -75,7 +76,6 @@ func (self *Caregiver) PushUrls(urls []string) error {
 			path += url.RawQuery
 		}
 		data[url.Host] = append(data[url.Host], path)
-		return nil
 	}
 
 	for host, urls := range data {
@@ -88,10 +88,12 @@ func (self *Caregiver) PushUrls(urls []string) error {
 		self.mutex.Unlock()
 		hosts.urls.EnqueueAll(urls...)
 	}
+	log.Printf("Caregiver.PushUrls(%#v) OK\n", urls)
 	return nil
 }
 
 func (self *Caregiver) PullUrls() map[string]string {
+	log.Printf("Caregiver.PullUrls()\n")
 	for {
 		self.dataMutex.RLock()
 		sleep := len(self.data) == 0
@@ -106,10 +108,12 @@ func (self *Caregiver) PullUrls() map[string]string {
 	defer self.dataMutex.Unlock()
 	res := self.data
 	self.data = map[string]string{}
+	log.Printf("Caregiver.PullUrls() OK (%v)\n", len(res))
 	return res
 }
 
 func (self *Caregiver) Start() error {
+	log.Printf("Caregiver.Start()\n")
 	for {
 		// выделим хосты, которын можно по таймауту качать
 		data := map[string]*hostData{}
@@ -126,6 +130,8 @@ func (self *Caregiver) Start() error {
 			continue
 		}
 
+		log.Printf("Caregiver.Start(): start downloading\n")
+
 		// резолвим dns
 		hosts := make([]string, 0, len(data))
 		for k, _ := range data {
@@ -134,9 +140,8 @@ func (self *Caregiver) Start() error {
 
 		var err error
 		ips := map[string][]string{}
-
 		// if self.dns != nil {
-		// 	ips, err = self.dns.ResolveAll(iter.Array(hosts))
+		// 	ips, err = self.dns.ResolveAll(hosts)
 		// 	if err != nil {
 		// 		return err
 		// 	}
@@ -158,17 +163,22 @@ func (self *Caregiver) Start() error {
 					ip = "[" + ip + "]:80"
 				}
 			}
-			host := "http://" + ip + "/"
+			host := "http://" + ip
 			us := v.urls.DequeueN(v.maxCount)
 			for i := 0; i < len(us); i += 1 {
-				us[i] = host + us[i]
+				if len(us[i]) != 0 {
+					us[i] = host + "/" + us[i]
+				} else {
+					us[i] = host
+				}
 			}
 			urls = append(urls, us...)
 		}
 
+		log.Printf("Caregiver.Start(): collected urls %#v\n", urls)
 		docs, err := self.downloader.DownloadAll(urls)
 		if err != nil {
-			return err
+			log.Errorln(err)
 		}
 
 		now = time.Now()
@@ -185,6 +195,8 @@ func (self *Caregiver) Start() error {
 				log.Errorln("Couldn't download url "+urls[i]+",", v)
 			}
 		}
+
+		log.Printf("Caregiver.Start(): downloaded urls %#v\n", urls)
 	}
 }
 
@@ -200,7 +212,11 @@ type CaregiverServer struct {
 }
 
 func (self *CaregiverServer) PushUrls(args *Args, result *struct{}) error {
-	return self.Caregiver.PushUrls(args.Urls)
+	err := self.Caregiver.PushUrls(args.Urls)
+	if err != nil {
+		log.Errorln(err, args)
+	}
+	return err
 }
 
 func (self *CaregiverServer) PullUrls(args *struct{}, result *map[string]string) error {
