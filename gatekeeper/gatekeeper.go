@@ -6,10 +6,10 @@ import (
 	"io/ioutil"
 	"net/url"
 	"os"
-	"psearch/gatekeeper/trie"
 	"psearch/util"
 	"psearch/util/errors"
 	"psearch/util/log"
+	"psearch/util/trie"
 	"sort"
 	"strconv"
 	"strings"
@@ -156,14 +156,17 @@ func (self *Gatekeeper) load(name string, num uint, counts map[uint]uint) error 
 			return err
 		}
 
-		nv := trie.Value{
+		nv := Value{
 			FNum:   num,
 			Offset: cnt,
 			Len:    n1 + n2,
 		}
 		old := self.trie.Add([]byte(u), nv)
-		if old.Len != 0 {
-			counts[old.FNum] -= 1
+		if old != nil {
+			old := old.(Value)
+			if old.Len != 0 {
+				counts[old.FNum] -= 1
+			}
 		}
 
 		cnt += n1 + n2
@@ -195,13 +198,13 @@ func (self *Gatekeeper) nextFile() error {
 	return nil
 }
 
-func (self *Gatekeeper) Write(url, key string, data []byte) (trie.Value, error) {
+func (self *Gatekeeper) Write(url, key string, data []byte) (Value, error) {
 	log.Printf("Gatekeeper.Write(%v, %v)\n", url, key)
 
 	if self.file.file == nil {
 		f, err := os.Create(self.dir + "/" + strconv.Itoa(int(self.fNum)))
 		if err != nil {
-			return trie.Value{}, errors.NewErr(err)
+			return Value{}, errors.NewErr(err)
 		}
 
 		self.file = gkFile{
@@ -211,11 +214,11 @@ func (self *Gatekeeper) Write(url, key string, data []byte) (trie.Value, error) 
 		}
 	} else if self.file.offset >= self.maxFileSize {
 		if err := self.nextFile(); err != nil {
-			return trie.Value{}, err
+			return Value{}, err
 		}
 	} else if self.file.end.Before(time.Now()) {
 		if err := self.file.file.Sync(); err != nil {
-			return trie.Value{}, errors.NewErr(err)
+			return Value{}, errors.NewErr(err)
 		}
 		self.file.end = time.Now().Add(self.maxTime)
 	}
@@ -225,19 +228,19 @@ func (self *Gatekeeper) Write(url, key string, data []byte) (trie.Value, error) 
 	cnt := 0
 	n, err := self.file.WriteLenval([]byte(url))
 	if err != nil {
-		return trie.Value{}, err
+		return Value{}, err
 	}
 	cnt += n
 
 	n, err = self.file.WriteLenval(data)
 	if err != nil {
-		return trie.Value{}, err
+		return Value{}, err
 	}
 	cnt += n
 
 	self.file.offset += uint64(cnt)
 
-	res := trie.Value{
+	res := Value{
 		FNum:   self.fNum,
 		Offset: offset,
 		Len:    uint64(cnt),
@@ -252,7 +255,7 @@ func (self *Gatekeeper) Write(url, key string, data []byte) (trie.Value, error) 
 	return res, nil
 }
 
-func (self *Gatekeeper) Read(val trie.Value) (string, error) {
+func (self *Gatekeeper) Read(val Value) (string, error) {
 	log.Printf("Gatekeeper.Read(%+v)\n", val)
 	f, err := util.Open(self.dir + "/" + strconv.Itoa(int(val.FNum)))
 	if err != nil {
@@ -276,14 +279,18 @@ func (self *Gatekeeper) Read(val trie.Value) (string, error) {
 	return string(res), nil
 }
 
-func (self *Gatekeeper) Find(key string) (trie.Value, bool) {
+func (self *Gatekeeper) Find(key string) (Value, bool) {
 	log.Printf("Gatekeeper.Find(%+v)\n", key)
 	res, ok := self.trie.Find([]byte(key))
 	log.Printf("Gatekeeper.Find(%+v) OK (%v, %v)\n", key, res, ok)
-	return res, ok
+	if !ok {
+		return Value{}, false
+	}
+
+	return res.(Value), true
 }
 
-func (self *Gatekeeper) TrieSize() int {
+func (self *Gatekeeper) TrieSize() uint {
 	return self.trie.Count
 }
 

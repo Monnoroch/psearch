@@ -1,17 +1,11 @@
 package trie
 
-type Value struct {
-	FNum   uint   `json:"fnum"`
-	Offset uint64 `json:"offset"`
-	Len    uint64 `json:"len"`
-}
-
 type nodeT struct {
-	val  Value
+	val  interface{}
 	next map[byte]*nodeT
 }
 
-func (self *nodeT) Add(key []byte, val Value, n int) (Value, int) {
+func (self *nodeT) Add(key []byte, val interface{}, n int) (interface{}, uint) {
 	if n == len(key) {
 		res := self.val
 		self.val = val
@@ -40,23 +34,23 @@ func (self *nodeT) Add(key []byte, val Value, n int) (Value, int) {
 
 }
 
-func (self *nodeT) Find(key []byte, n int) (Value, bool) {
+func (self *nodeT) Find(key []byte, n int) (interface{}, bool) {
 	if n == len(key) {
-		if self.val.Len != 0 {
+		if self.val != nil {
 			return self.val, true
 		} else {
-			return Value{}, false
+			return nil, false
 		}
 	}
 
 	if self.next == nil {
-		return Value{}, false
+		return nil, false
 	}
 
 	b := key[n]
 	t, ok := self.next[b]
 	if !ok {
-		return Value{}, false
+		return nil, false
 	}
 
 	return t.Find(key, n+1)
@@ -64,15 +58,15 @@ func (self *nodeT) Find(key []byte, n int) (Value, bool) {
 
 type Trie struct {
 	root  nodeT
-	Count int
+	Count uint
 }
 
-func (self *Trie) Add(key []byte, val Value) Value {
+func (self *Trie) Add(key []byte, val interface{}) interface{} {
 	res, cnt := self.root.Add(key, val, 0)
 	self.Count += cnt
 	return res
 }
 
-func (self *Trie) Find(key []byte) (Value, bool) {
+func (self *Trie) Find(key []byte) (interface{}, bool) {
 	return self.root.Find(key, 0)
 }
