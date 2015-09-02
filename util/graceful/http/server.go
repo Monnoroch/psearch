@@ -46,10 +46,10 @@ func (self *Server) ListenAndServe(addr string, restart bool) error {
 	return self.Serve(l)
 }
 
-func CreateHandler(server *Server, handler http.HandlerFunc) http.HandlerFunc {
+func CreateHandler(server *Server, handler http.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		server.restart.Inc()
 		defer server.restart.Dec()
-		handler(w, r)
+		handler.ServeHTTP(w, r)
 	}
 }
